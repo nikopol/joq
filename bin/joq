@@ -1,0 +1,138 @@
+#!/usr/bin/perl
+
+use warnings;
+use strict;
+
+use Getopt::Long;
+use joq;
+
+GetOptions(
+	'help|h|?'         => \my $help,
+	'deamon|d'         => \my $daemonize,
+	'jobs|j|file|f=s'  => \my $confile,
+	'loglevel|ll=s'    => \my $loglevel,
+	'logfile|lf=s'     => \my $logfile,
+	's|server=s'       => \my $server,
+	'polling|poll|p=s' => \my $polling,
+	'backup|b=s'       => \my $backup,
+	'timezone|tz=s'    => \my $timezone,
+	'oneshot|os|q'     => \my $oneshot,
+	'maxfork|m=s'      => \my $maxfork,
+	'user|u=s'         => \my $user,
+);
+
+if( $help ) {
+	{
+		print <<EOHELP
+joq v$joq::VERSION
+niko °L°
+
+syntax:
+$0 [options] [configfile]
+
+avalaible options :
+ -h --help              : guess what
+ -d --daemon            : spawn as deamon
+ -u --user user         : set joq uid (only if started as root)
+ -f --file filename     : config file to load
+ -ll --loglevel level   : level can be error,warning,notice,info,debug
+                          (default=info)
+ -lf --logfile filename : output log to filename
+ -s --server host:port  : set telnet server (off to disable it,
+                          default=localhost:1970)
+ -p --poll --polling s  : set polling to s seconds (default=10s)
+ -b --backup file       : set where queue and parameters are backuped
+ -tz --timezone zone    : set time zone (default=Europe/Paris)
+ -q --oneshot           : quit on empty queue
+ -m --maxfork int       : set max concurent job (default=4)
+
+note: options overload config file parameters
+
+sample config file :
+
+{
+  "polling": 2,
+  "server": "off",
+  "oneshot": 0,
+  "log": {
+	  "level": "NOTICE",
+	  "file": "/var/log/joq.log"
+  },
+  "jobs": [
+    { "name":"foo", "shell":"ls", "args":"/", "when": { "delay":0 } },
+    { "code":"for(qw/un deux trois quatre cinq/){ print \"\$_\\n\"; sleep 1 }" },
+    { "shell":"echo 'prout'", "when": {"after":"foo"} }
+  ],
+  "remotes": [
+    "host1:1970",
+    "host2:1970",
+  ]
+}
+
+jobs options :
+
+  name     = "jobname"                                                                                      
+  args     = \@args given to sub as arguments if present
+  shell    = cmd
+  nice     = int -20(fast) > 19(slow)
+  class    = class::name with ->new and ->run(\@args) methods
+  package  = class::name to use
+  code     = code_to_eval
+  priority = 1-10 (1=slow,10=speed,default=5) 
+  if       = code_to_eval
+  logfile  = filename for job log output
+  onfinish = sub (internal usage)
+  when = {
+     dayofweek:"all|sat,mon,1-7" 1=monday, time:"hh:mm,hh:mm,.."
+     dayofmonth:"all|1-31,...", time:"hh:mm,hh:mm,..."
+     dayofyear:"all|1-365,...", time:"hh:mm,hh:mm,..."
+     repeat:seconds
+     after:"job1 or job2 and job3"
+     start:"yyyy-mm-dd hh:mm"
+     delay:seconds
+     count:nbtime
+  } default={ count:1 }
+
+
+EOHELP
+	}
+	exit 1;
+}
+
+$confile = shift @ARGV if @ARGV && !$confile;
+die "sorry master but I don't understand\n".
+    "$confile is not readable, you mean -$confile perhaps\n"
+	unless !$confile || -r $confile;
+my %o = %{ joq::load( $confile ) };
+$o{server}   = $server if $server;
+$o{polling}  = $polling if $polling;
+$o{backup}   = $backup if $backup;
+$o{oneshot}  = 1 if $oneshot;
+$o{maxfork}  = $maxfork if $maxfork;
+if( $daemonize ) {
+	delete $o{log}->{screen} if exists $o{log}->{screen};
+} else {
+	$o{log}->{screen} = 'color' unless exists $o{log};
+}
+$o{log}->{level}  = $loglevel if $loglevel;
+$o{log}->{file}   = $logfile if $logfile;
+
+if( $user ) {
+	die("you must be root to change uid to $user\n") unless $< == 0;
+	die("unknow user $user\n") unless my $uid = getpwnam($user);
+	$< = $uid;
+	die("error switching to $user ($uid) : $!\n") if $!;
+}
+
+if( $daemonize ) {
+	use POSIX 'setsid';
+	chdir '/' or die "can't chdir to /: $!";
+	open STDIN, '/dev/null' or die "can't read /dev/null: $!";
+	open STDOUT, '>/dev/null' or die "can't write to /dev/null: $!";
+	defined(my $pid = fork) or die "can't fork: $!";
+	exit if $pid;
+	die "can't start a new session: $!" if setsid == -1;
+	open STDERR, '>&STDOUT' or die "can't dup stdout: $!";
+}
+
+joq::run( %o );

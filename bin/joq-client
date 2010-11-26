@@ -1,0 +1,132 @@
+#!/usr/bin/perl
+
+use warnings;
+use strict;
+
+use Time::HiRes qw(gettimeofday tv_interval);
+use Getopt::Long;
+use joq::file;
+use joq::client;
+
+GetOptions(
+	'help|?'      => \my $help,
+	'debug|dbg|d' => \my $debug,
+	'host|h=s'    => \my $host,
+	'port|p=s'    => \my $port,
+	'mode|m=s'    => \my $mode,
+);
+
+my $o = {
+	debug => $debug || 0,
+	host  => $host || 'localhost',
+	port  => $port || 1970,
+};
+$o->{mode} = $mode if $mode;
+
+sub help {
+	print <<EOHELP
+joq Client v$joq::VERSION
+
+syntax:
+$0 [-options] command [args]
+
+options:
+ -? --help            display pron picture
+ -d --debug           verbose debug output
+ -h --host hostname   set joq server hostname (default=localhost)
+ -p --port port       set joq server port (default=1970)
+ -m --mode fmt        set output format (yaml,json or text)
+
+commands & args:
+ping                               : play ping pong
+load filename                      : load a local json with jobs, 
+                                     and send it to the server
+list                               : list queued jobs 
+show jobname|jobid                 : show detail on a given job
+add  [shell|code|class] cmd [args] : queue a job
+     [name=foo] [delay=0(seconds)] 
+	 [repeat=0(seconds)] [count=1]
+	 [\@h:m]
+del jobname|jobid                  : unqueue a job, stopping it if it runs
+stop jobname|jobid                 : stop a running job
+history [jobname|jobid]            : show ended jobs, or detail on one
+killall                            : clear the queue, killing all jobs
+shutdown                           : send joq server to the graveyard
+
+EOHELP
+;
+	exit 1;
+}
+
+help if $help || !@ARGV;
+
+my $client;
+my %commands = (
+	ping => sub {
+		my $max=0;
+		my $min=999999;
+		my $n=0;
+		my $s=0;
+		my $run=10;
+		$SIG{INT} = sub { $run=0 };
+		while($run-->0) {
+			my $t=[gettimeofday];
+			$client->ping;
+			$t=1000*tv_interval($t,[gettimeofday]);
+			$n++;
+			$s+=$t;
+			$max=$t if $t>$max;
+			$min=$t if $t<$min;
+			printf "%.3fms\n", $t;
+			sleep 1;
+		}
+		sprintf('max=%.3fms min=%.3fms avg=%.3fms count=%d',$max,$min,$n?$s/$n:0,$n);
+	},
+	load => sub {
+		my $file = shift;
+		return "file not found" unless $file && -r $file;
+		my @lines = map { chomp; s/^\s+//; s/\s+$//; $_ } readfile($file);
+		$client->load(join('',@lines));
+	},
+	list => sub {
+		$client->list;
+	},
+	show => sub {
+		my $job = shift;
+		return "requires a jobid or a jobname" unless $job;
+		$client->show( $job );
+	},
+	history => sub {
+		$client->history( shift );
+	},
+	add => sub {
+		return "requires at least a shell command" unless @_;
+		map { s/^\@/time=/  } @_;
+		$client->add( @_ );
+	},
+	del => sub {
+		my $job = shift;
+		return "requires a jobid or a jobname" unless $job;
+		$client->del( $job );
+	},
+	stop => sub {
+		my $job = shift;
+		return "requires a jobid or a jobname" unless $job;
+		$client->stop( $job );
+	},
+	killall => sub {
+		$client->killall;
+	},
+	shutdown => sub {
+		$client->shutdown;
+	},
+);
+
+my $cmd = lc(shift @ARGV);
+die("i've searched hard, deep and carefully, but i didn't find this command\n")
+	unless exists $commands{$cmd};
+
+$client = joq::client->new(%$o);
+die("unable to connect\n".($client->error."\n"||"")) unless $client && $client->connected;
+print $commands{$cmd}(@ARGV),"\n";
+0;

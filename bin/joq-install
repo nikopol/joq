@@ -1,0 +1,149 @@
+#!/usr/bin/perl
+
+use warnings;
+use strict;
+
+use Getopt::Long;
+use JSON::XS;
+
+GetOptions(
+	'help|h|?'    => \my $help,
+	'remove|r'    => \my $rm,
+	'install|i'   => \my $install,
+	'mode|m=s'    => \my $usermode,
+	'overwrite|o' => \my $overwrite,
+);
+
+if( $help ) {
+	{
+		print <<EOHELP
+joq Setup
+
+syntax:
+$0 [options]
+
+avalaible options:
+ -h --help             : ...
+ -r --remove           : remove init script
+ -i --install          : install init script (this is the default)
+ -m --mode=arch|debian : fjoqe mode (auto detect by default)
+ -o --overwrite        : overwrite existing files
+
+you must be root to use this tool
+
+EOHELP
+	}
+	exit 1;
+}
+
+die("you must be root\n") if $<;
+die("install or remove ?!\n") if $install && $rm;
+my $act = $rm ? 'remove' : 'install';
+
+my $mode;
+if( $usermode ) {
+	$mode = 'arch' if $usermode  =~ /^a(?:rch)$/i;
+	$mode = 'debian' if $usermode  =~ /^d(?:eb(?:ian))$/i;
+	die("available modes are debian or arch\n") unless $mode;
+} else {
+	$mode = 'arch' if -d '/etc/rc.d' && -d '/etc/conf.d';
+	$mode = 'debian' if -d '/etc/init.d';
+}
+
+my $dftconf = {
+	server      => 'localhost:1970',
+	timezone    => 'Europe/Paris',
+	polling     => 10,
+	termtimeout => 3,
+	maxfork     => 4,
+	backup      => 0,
+	remotes     => [],
+	maxhistory  => 32,
+	log         => {
+		level => 'INFO',
+		file  => '/var/log/joq.log',
+	},
+};
+
+sub createfile {
+	my( $fn, $txt, $exec ) = @_;
+	if( -f $fn ) {
+		print "$fn already exists, skipped\n";
+		return 0;
+	}
+	my $h;
+	open( $h, '>'.$fn ) or die("unable to open $fn\n");
+	print $h $txt;
+	close $h;
+	print "$fn created\n";
+	chmod( 0755, $fn ) if $exec;
+	1;
+}
+
+sub removefile {
+	my $fn = shift;
+
+
+my %cmd = (
+
+	arch_install => sub {
+		createfile('/etc/rc.d/joq', <<EOARCH
+#!/bin/bash
+. /etc/rc.conf
+. /etc/rc.d/functions
+joq_ARGS=
+[ -f /etc/conf.d/joq ] && . /etc/conf.d/joq
+PID=`pidof -o %PPID /usr/sbin/joq`
+case "\$1" in
+	start)
+		stat_busy "Starting joq"
+		[ -z "\$PID" ] && /usr/sbin/joq \${joq_ARGS}
+		if [ \$? -gt 0 ]; then
+			stat_fail
+		else
+			add_daemon joq
+			stat_done
+		fi
+		;;
+	stop)
+		stat_busy "Stopping joq"
+		[ ! -z "\$PID" ]  && kill \$PID &> /dev/null
+		if [ \$? -gt 0 ]; then
+			stat_fail
+		else
+			rm_daemon joq
+			stat_done
+		fi
+		;;
+	restart)
+		\$0 stop
+		\$0 start
+	   ;;
+	*)
+		echo "usage: \$0 {start|stop|restart}"
+esac
+exit 0
+EOARCH
+		,1);
+		createfile( '/etc/conf.d/joq', 'joq_ARGS="-d -f /etc/joq.conf"' );
+		createfile( '/etc/joq.conf', JSON::XS->new->utf8->pretty->encode($dftconf) );
+	},
+
+	arch_remove => sub {
+		removefile( $_ ) for( qw( /etc/joq.conf /etc/conf.d/joq /etc/rc.d/joq ) );
+	},
+
+	debian_install => sub {
+# register mongodb
+# update-rc.d mongodb defaults 90 >/dev/null
+# # start mongodb
+# invoke-rc.d mongodb start
+	},
+
+	debian_remove => sub {
+	},
+);
+
+print "> $mode $act\n";
+$cmd{$mode.'_'.$act}();
+
