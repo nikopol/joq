@@ -5,6 +5,7 @@ use strict;
 
 use Time::HiRes qw(gettimeofday tv_interval);
 use Getopt::Long;
+use joq;
 use joq::file;
 use joq::client;
 
