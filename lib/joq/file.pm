@@ -13,8 +13,8 @@ use constant BUFSIZE => 16384;
 
 sub readfile {
 	my $fn   = shift || die('what file?');
-	my %args = @_ || ();
-	my $mode = $args{mode} ? $args{mode} : $args{no_utf8} ? '<' : '<:encoding(UTF-8)';
+	my $mode = shift || '<:encoding(UTF-8)';
+warn "READFILE=$fn MODE=$mode\n";
 	open(FH, $mode, $fn) or die('cannot open file '.$fn.' : '.$!);
 	my $data = '';
 	read( FH, $data, BUFSIZE, length $data ) while !eof(FH);
