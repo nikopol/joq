@@ -14,7 +14,6 @@ use constant BUFSIZE => 16384;
 sub readfile {
 	my $fn   = shift || die('what file?');
 	my $mode = shift || '<:encoding(UTF-8)';
-warn "READFILE=$fn MODE=$mode\n";
 	open(FH, $mode, $fn) or die('cannot open file '.$fn.' : '.$!);
 	my $data = '';
 	read( FH, $data, BUFSIZE, length $data ) while !eof(FH);
