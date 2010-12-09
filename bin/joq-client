@@ -46,8 +46,8 @@ list                               : list queued jobs
 show jobname|jobid                 : show detail on a given job
 add  [shell|code|class] cmd [args] : queue a job
      [name=foo] [delay=0(seconds)] 
-	 [repeat=0(seconds)] [count=1]
-	 [\@h:m]
+     [repeat=0(seconds)] [count=1]
+     [\@h:m]
 del jobname|jobid                  : unqueue a job, stopping it if it runs
 stop jobname|jobid                 : stop a running job
 history [jobname|jobid]            : show ended jobs, or detail on one
