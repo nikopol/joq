@@ -623,9 +623,9 @@ EOSETTXT
 			log::info("connection opened from $cnxid");
 			syswrite $fh, <<EOINTRO
 
-███ ███ ███   zogzog to joq v$VERSION
- █  █ █ █ █   please let this space as clean as when you logged in
-██  ███ ████  type help if you're lost
+ ██████ ███   zogzog to joq v$VERSION
+  █ █.█ █.█   please let this space as clean as when you logged in
+███ ███ ████  type help if you're lost
 
 EOINTRO
 			;
