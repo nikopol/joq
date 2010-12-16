@@ -26,18 +26,18 @@ sub error { shift->dump(shift,'error') }
 sub lf { syswrite shift->{fh}, "\n"; }
 
 sub dump {
-	my($self,$txt,$key) = @_;
+	my($self,$txt,$key,$order) = @_;
 	my $out = '';
 	if($self->{mode} eq 'text') {
 		$key = undef if $key && $key ne 'error';
 		if( ref($txt) eq 'HASH' ) {
-			$out = $self->list($key,$txt);
+			$out = $self->list($key,$txt,'',$order);
 		} elsif( ref($txt) eq 'ARRAY' ) {
 			my $sref = scalar @$txt ? ref(@$txt[0]) : undef;
 			if( $sref eq 'HASH' ) {
-				$out = $self->table($txt);
+				$out = $self->table($txt,$order);
 			} elsif( $sref eq 'ARRAY' ) {
-				$out = $self->table($txt);
+				$out = $self->table($txt,$order);
 			} else {
 				$out = join("\n",@$txt);
 			}
@@ -89,14 +89,15 @@ sub right {
 }
 
 sub orderkeys {
-	my($self,@keys) = @_;
-	my %w = (
-		id    => 1,
-		name  => 2,
-		alias => 3,
-		args  => 4,
-	);
-	sort { ($w{$a}||99) <=> ($w{$b}||99) } @keys;
+	my($self,$keys,$order) = @_;
+	my %w;
+	if( $order ) {
+		my $n = 1;
+		foreach( split /[,;:|]+/,$order ) {
+			$w{$_} = $n++ if $_;
+		}
+	}
+	sort { ($w{$a}||99) <=> ($w{$b}||99) } @$keys;
 }
 
 my %fmtab = (
@@ -123,12 +124,13 @@ sub fmt {
 }
 
 sub list {
-	my($self,$key,$list,$tab) = @_;
+	my($self,$key,$list,$tab,$order) = @_;
 	$tab = '' unless defined $tab;
 	$list = '' unless defined $list;
 	my $out = '';
 	if( ref($list) eq 'HASH' ) {
-		my @keys = $self->orderkeys( keys %$list );
+		my @keys = keys %$list;
+		@keys = $self->orderkeys( \@keys, $order );
 		my $klen = 0;
 		foreach( @keys ) {
 			$klen = length($_) if length($_) > $klen;
@@ -136,7 +138,7 @@ sub list {
 		my $stab = $tab.($klen>5 ? ' ' x int($klen/2) : '   ').' |';
 		$out = "\n" if length($tab);
 		foreach my $k ( @keys ) {
-			$out.=$tab.$self->right($k,$klen).': '.$self->list($k,$list->{$k},$stab);
+			$out.=$tab.$self->right($k,$klen).': '.$self->list($k,$list->{$k},$stab,$order);
 		}
 	} elsif( ref($list) eq 'ARRAY' ) {
 		$out = "\n" if length($tab);
@@ -150,7 +152,7 @@ sub list {
 }
 
 sub table {
-	my($self,$list) = @_;
+	my($self,$list,$order) = @_;
 	#calc width/columns
 	my %cols;
 	my @colkeys;
@@ -164,7 +166,8 @@ sub table {
 				$cols{$cell} = $l unless $cols{$cell} && $l < $cols{$cell};
 			}
 		}
-		@colkeys = $self->orderkeys( keys %cols );
+		@colkeys = keys %cols;
+		@colkeys = $self->orderkeys( \@colkeys, $order );
 	} else {
 		for my $row (@$list) {
 			my $n = 0;

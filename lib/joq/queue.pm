@@ -13,6 +13,7 @@ my @runs;
 my @readys;
 my @history;
 my $polling;
+my $runcount = 0;
 
 our %cfg = (
 	maxfork     => 4,  #max simultaneous running
@@ -149,6 +150,17 @@ sub histurn {
 	scalar @history;
 }
 
+sub status {
+	{
+		maxfork     => $cfg{maxfork},
+		queuedjobs  => scalar keys %jobs,
+		deadjobs    => scalar @history,
+		runningjobs => scalar @runs,
+		runnedjobs  => $runcount,
+		readyjobs   => scalar @readys,
+	};
+}
+
 sub poll {
 	return undef if $polling;
 	$polling = 1;
@@ -166,6 +178,7 @@ sub poll {
 				push @alive, $jid;
 			} else {
 				$finished{$job->{name}} = $jid if exists $job->{name};
+				$runcount++;
 				if( joq::job::dead($job) ) {
 					log::info($job->{fullname}.' marked as finished and dead');
 					historize( delete $jobs{$jid} );

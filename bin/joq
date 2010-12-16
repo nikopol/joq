@@ -24,30 +24,31 @@ GetOptions(
 if( $help ) {
 	{
 		print <<EOHELP
-joq v$joq::VERSION
-niko °L°
+JOQ v$joq::VERSION
+niko °L° 2010
 
 syntax:
 $0 [options] [configfile]
 
 avalaible options :
- -h --help              : guess what
- -d --daemon            : spawn as deamon
- -u --user user         : set joq uid (only if started as root)
- -f --file filename     : config file to load
- -ll --loglevel level   : level can be error,warning,notice,info,debug
-                          (default=info)
- -lf --logfile filename : output log to filename
- -s --server host:port  : set telnet server (off to disable it,
-                          default=localhost:1970)
- -p --poll --polling s  : set polling to s seconds (default=10s)
- -b --backup file       : set where queue and parameters are backuped
- -tz --timezone zone    : set time zone (default=Europe/Paris)
- -q --oneshot           : quit on empty queue
- -m --maxfork int       : set max concurent job (default=4)
+ -h -help              : order a double pepperoni pizza
+ -d -daemon            : spawn as deamon from the fifth circle
+ -u -user user         : set joq uid (only if started as root)
+ -f -file filename     : config file to load
+ -ll -loglevel level   : error,warning,notice,info(default),debug
+ -lf -logfile filename : output log to filename
+ -s -server host:port  : set telnet server
+                         disabled= -s off
+                          default= -s localhost:1970
+ -p -poll -polling s   : set polling to s seconds (default=10s)
+ -b -backup file       : set where current state is backuped
+ -tz -timezone zone    : set time zone (default=Europe/Paris)
+ -q -oneshot           : quit on empty queue
+ -m -maxfork int       : set max concurent job (default=4)
 
 note: options overload config file parameters
 
+config file, as backup file are in json.
 sample config file :
 
 {
@@ -61,7 +62,7 @@ sample config file :
   "jobs": [
     { "name":"foo", "shell":"ls", "args":"/", "when": { "delay":0 } },
     { "code":"for(qw/un deux trois quatre cinq/){ print \"\$_\\n\"; sleep 1 }" },
-    { "shell":"echo 'prout'", "when": {"after":"foo"} }
+    { "shell":"echo 'bar'", "when": {"after":"foo"} }
   ],
   "remotes": [
     "host1:1970",
@@ -69,20 +70,21 @@ sample config file :
   ]
 }
 
+jobs must have at least a class, code, or shell parameter.
+
 jobs options :
 
-  name     = "jobname"                                                                                      
-  args     = \@args given to sub as arguments if present
+  name     = "jobname" (default=first word of class/code/shell)
   shell    = cmd
   nice     = int -20(fast) > 19(slow)
-  class    = class::name with ->new and ->run(\@args) methods
-  package  = class::name to use
-  code     = code_to_eval
+  class    = perl class::name with ->new and ->run([args]) methods
+  package  = perl class::name to use
+  args     = array of arguments given to the class
+  code     = perl_code_to_eval
   priority = 1-10 (1=slow,10=speed,default=5) 
-  if       = code_to_eval
+  if       = perl_code_to_eval as start condition
   logfile  = filename for job log output
-  onfinish = sub (internal usage)
-  when = {
+  when     = {
      dayofweek:"all|sat,mon,1-7" 1=monday, time:"hh:mm,hh:mm,.."
      dayofmonth:"all|1-31,...", time:"hh:mm,hh:mm,..."
      dayofyear:"all|1-365,...", time:"hh:mm,hh:mm,..."
@@ -92,7 +94,6 @@ jobs options :
      delay:seconds
      count:nbtime
   } default={ count:1 }
-
 
 EOHELP
 	}

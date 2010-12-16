@@ -95,7 +95,6 @@ sub cmd {
 }
 
 sub mode { shift->cmd('mode '.(shift|'')); }
-sub ping { shift->cmd('ping'); }
 sub load { shift->cmd('load '.join(' ',@_)); }
 sub list { shift->cmd('list'); }
 sub show { shift->cmd('show '.join(' ',@_)); }
@@ -105,6 +104,7 @@ sub stop { shift->cmd('stop '.join(' ',@_)); }
 sub killall { shift->cmd('killall'); }
 sub shutdown { shift->cmd('shutdown'); }
 sub history { shift->cmd('history '.(shift||'')); }
+sub status { shift->cmd('status'); }
 
 1;
 __END__
@@ -122,11 +122,11 @@ joq - Client
 	port => 1970,
 	mode => 'text' #could be yaml,json or text
   );
-  print( $cli->ping || $cli->error );
+  print( $cli->status() || $cli->error );
 
 
-  #send ping
-  print joq::client->new->ping;  #pong
+  #get joq status
+  print joq::client->new->status;
 
   #send a job - first way
   joq::client->new->add('code while(1){ print "bazinga\n"; sleep 10; } name=bazinga delay=30');

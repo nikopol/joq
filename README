@@ -1,1 +1,13 @@
+JOb Queue
+niko 2010
+
+as its name seems to indicate, joq manage jobs queue!
+
+a queue can run a parametizabled number of jobs simultaneously.
+
+a job can be shell code or perl code/class, and have many parameters such as when to start (at a time, after a time, after other jobs, etc...), log, priority, and nice.
+
+there's more than one way to supervise joq : telnet, command line tool joq-client, or programatically with perl and joq::client.
+joq can be linked to others joqs, and job can be added to all sync'ed joq at a time.
+
 

@@ -175,10 +175,10 @@ add a job in queue
              repeat=seconds   : time between runs (next_run=last_start+repeat)
               count=count     : how many you wanna run this job (default=1 or infinite)
                  if=codeval   : not startable unless this codeval
-               nice= -20..19  : nice job's fork (-20=fast,19=slow)
-           priority= 1..10    : start priority (1=slow,10=speed,default=5)	 
-              after=job(s)    : wait then end of this/theses job(s) to start. you can
-                                use boolean & and | between jobnames
+               nice=-20..19   : nice job's fork (-20=fast,19=slow)
+           priority=1..10     : start priority (1=slow,10=speed,default=5)	 
+              after=job(s)    : wait then end of this/theses job(s) to start.
+                                you can use boolean & and | between jobnames.
                                 eg: jobname eg: job1&job2 eg: job1|job2
           dayofweek=day(s)    : run job at theses days, comma separeted. 
                                 avail values: all,sunday,dimanche,monday,lundi,etc...
@@ -186,9 +186,11 @@ add a job in queue
           dayofyear=day(s)    : run job at theses days, comma separated (all, 1-365)
                time=time(s)   : run job at theses hours. eg: 1h00,15h00
            logfile=filename   : log filename of job output
+
+   eg: addjob ls -l repeat=20
 EOADDTXT
 				,
-				arg => "[shell|code|class] cmd [cmd_args] [options]",
+				arg => "[shell|code|class] cmd [args] [opts]",
 				bin => sub {
 					my( $out, $arg ) = @_;
 					my @args = split / /,$arg;
@@ -199,10 +201,7 @@ EOADDTXT
 						$cmd = shift @args;
 					}
 					if( $cmd ) {
-						my $name = $cmd;
-						$name =~ s/[^\w]+.*$//g;
 						my %jobargs = (
-							name  => $name,
 							$typ  => $cmd,
 							when  => {},
 							args  => [],
@@ -218,6 +217,16 @@ EOADDTXT
 							} else {
 								push @{$jobargs{args}}, $_;
 							}
+						}
+						unless( $jobargs{name} ) {
+							my $name = $cmd;
+							$name =~ s/[^\w]+.*$//g;
+							if( joq::queue::job($name) ) {
+								my $n = 2;
+								$n++ while( joq::queue::job($name.'#'.$n) );
+								$name = $name.'#'.$n;
+							}
+							$jobargs{name} = $name;
 						}
 						my $job = addjob( \%jobargs );
 						if( $job ) {
@@ -292,10 +301,14 @@ EOADDTXT
 						my @lines;
 						foreach( @cmds ) {
 							my $c = $tcp_commands{$_};
-							push @lines, $_.(exists $c->{arg}?' '.$c->{arg}:'')
-								unless $c->{alias};
+							my @txts = $c->{txt} ? split(/\n/,$c->{txt}) : ();
+							push @lines, {
+								cmd  => $_,
+								args => $c->{arg}||'',
+								help => $c->{alias} ? 'alias of '.$c->{alias} : @txts ? shift @txts : '',
+							};
 						}
-						$out->dump(\@lines,'help');
+						$out->dump(\@lines,'help','cmd,args,help');
 					}
 					SHELLOK;
 				}
@@ -367,7 +380,7 @@ EOADDTXT
 							push @lines, $j;
 						}
 						my $z=\@lines;
-						$out->dump($z,'list');
+						$out->dump($z,'list','id,name,alias,args');
 					} else {
 						$out->send('empty queue');
 					}
@@ -376,7 +389,12 @@ EOADDTXT
 			},
 
 			load => {
-				txt => 'load jobs from a file or string. yaml and json are both accepted. only the "jobs" key will be processed, other entries such as joq parameters are ignored.',
+				txt => <<EOLOADTXT
+load jobs from a file or string.
+yaml and json are both accepted.
+only the "jobs" key will be processed, other entries such as joq parameters are ignored.
+EOLOADTXT
+				,
 				arg => 'filename or string',
 				bin => sub {
 					my($out,$arg) = @_;
@@ -400,7 +418,7 @@ EOADDTXT
 
 			log => {
 				txt => 'show realtime log. press enter to stop.',
-				arg => '[short|long|color] [error|warning|info|notice|debug]',
+				arg => '[short|long|color] [level]',
 				bin => sub { 
 					my($out,$arg,$cnxid) = @_;
 					my($mod,$lev);
@@ -423,21 +441,13 @@ EOADDTXT
 				}
 			},
 
-			ping => {
-				txt => 'send back pong in your face',
-				bin => sub {
-					shift->send('pong');
-					SHELLOK;
-				}
-			},
-	 
 			quit  => { alias => 'close' },
 
 			rm => { alias => 'del' },
 
 			remote => {
 				txt => 'show/add/del a remote joq',
-				arg => 'none or add name host:port [sync] or del name',
+				arg => '[add name host:port [sync]|del name]',
 				bin => sub {
 					my($out,$arg) = @_;
 					if( $arg ) {
@@ -462,7 +472,7 @@ EOADDTXT
 						}
 						$out->dump(\@lines,'remote');
 					} else {
-						$out->error('no remote server');
+						S$out->error('no remote server');
 					}
 					SHELLOK;
 				}
@@ -555,6 +565,22 @@ EOSETTXT
 				}
 			},
 
+			stat   => { alias => 'status' },
+			status => {
+				txt => "show JoQ various states",
+				bin => sub {
+					my $out = shift;
+					my $s = time - $start;
+					my $m = int($s / 60);
+					my $h = int($m / 60);
+					my $d = int($h / 24);
+					my $stat = joq::queue::status();
+					$stat->{uptime} = sprintf("%d day%s %dh%02dm%02ds", $d, $d>1?'s':'', $h%24, $m%60, $s%60);
+					$out->dump($stat,'status');
+					SHELLOK;
+				}
+			},
+
 			stop => { alias => 'stopjob' },
 			stopjob => {
 				txt => "stop a running job and let it queued",
@@ -592,17 +618,6 @@ EOSETTXT
 				}
 			},
 
-			uptime => {
-				txt => "show joq uptime",
-				bin => sub {
-					my $s = time - $start;
-					my $m = int($s / 60);
-					my $h = int($m / 60);
-					my $d = int($h / 24);
-					shift->send(sprintf("%d day%s %dh%02dm%02ds\n", $d, $d>1?'s':'', $h%24, $m%60, $s%60));
-					SHELLOK;
-				}
-			},
 		);
 		
 		my( $ip, $port ) = parse_hostport($cfg{server});
@@ -623,14 +638,15 @@ EOSETTXT
 			log::info("connection opened from $cnxid");
 			syswrite $fh, <<EOINTRO
 
- ██████ ███   zogzog to joq v$VERSION
-  █ █.█ █.█   please let this space as clean as when you logged in
-███ ███ ████  type help if you're lost
+ ██████████   zogzog to joq v$VERSION
+  █ █ █ █ █   please let this space as clean as when you logged in
+███ ███ ████  try help if you're lost - empty line repeat last command
 
 EOINTRO
 			;
 			syswrite $fh, '>';
 			my $out = joq::output->new;
+			my $lastcmd = 'status';
 			my $io; $io = AnyEvent->io(
 				fh   => $fh,
 				poll => 'r',
@@ -648,7 +664,8 @@ EOINTRO
 						foreach my $line ( split /\n/, $buf ) {
 							$line =~ s/^\s+//;
 							$line =~ s/\s+$//;
-							$line = 'list' unless $line;
+							$line = $lastcmd unless $line;
+							$lastcmd = $line;
 							my @args = split / /,$line;
 							#check for @host directive
 							my @at = grep { /^@/ } @args;
@@ -673,7 +690,7 @@ EOINTRO
 								}
 								log::debug("execute $cmd($arg) from $cnxid");
 								joq::remote::exec("$cmd $arg", \@remotes, $fh) 
-									if @remotes && $cmd =~ /ping|load|list|show|add|del|stop|killall|shutdown/;
+									if @remotes && $cmd =~ /load|list|show|add|del|stop|killall|shutdown/;
 								$cr = $sub->{bin}($out,$arg,$cnxid) unless @at;
 								undef $io if $cr == SHELLCLOSE;
 							} else {
@@ -710,7 +727,6 @@ joq -
 =head1 SYNOPSIS
 
   use joq;
-
   joq::run;
 
 =head1 DESCRIPTION

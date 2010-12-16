@@ -39,7 +39,7 @@ options:
  -m --mode fmt        set output format (yaml,json or text)
 
 commands & args:
-ping                               : play ping pong
+status                             : get joq status
 load filename                      : load a local json with jobs, 
                                      and send it to the server
 list                               : list queued jobs 
@@ -63,26 +63,6 @@ help if $help || !@ARGV;
 
 my $client;
 my %commands = (
-	ping => sub {
-		my $max=0;
-		my $min=999999;
-		my $n=0;
-		my $s=0;
-		my $run=10;
-		$SIG{INT} = sub { $run=0 };
-		while($run-->0) {
-			my $t=[gettimeofday];
-			$client->ping;
-			$t=1000*tv_interval($t,[gettimeofday]);
-			$n++;
-			$s+=$t;
-			$max=$t if $t>$max;
-			$min=$t if $t<$min;
-			printf "%.3fms\n", $t;
-			sleep 1;
-		}
-		sprintf('max=%.3fms min=%.3fms avg=%.3fms count=%d',$max,$min,$n?$s/$n:0,$n);
-	},
 	load => sub {
 		my $file = shift;
 		return "file not found" unless $file && -r $file;
@@ -120,6 +100,9 @@ my %commands = (
 	},
 	shutdown => sub {
 		$client->shutdown;
+	},
+	status => sub {
+		$client->status;
 	},
 );
 
