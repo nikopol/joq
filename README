@@ -1,5 +1,8 @@
-JOb Queue
+JObi Queue
 niko 2010
+
+
+## DESCRIPTION
 
 as its name seems to indicate, joq manage jobs queue!
 
@@ -9,5 +12,64 @@ a job can be shell code or perl code/class, and have many parameters such as whe
 
 there's more than one way to supervise joq : telnet, command line tool joq-client, or programatically with perl and joq::client.
 joq can be linked to others joqs, and job can be added to all sync'ed joq at a time.
+
+
+## SPECIFICATION
+
+config file, as backup file are in json.
+sample config file :
+
+{
+  "polling": 2,
+  "server": "off",
+  "oneshot": 0,
+  "log": {
+	  "level": "NOTICE",
+	  "file": "/var/log/joq.log"
+  },
+  "jobs": [
+    { "name":"foo", "shell":"ls", "args":"/", "when": { "delay":0 } },
+    { "code":"for(qw/un deux trois quatre cinq/){ print "$_\n"; sleep 1 }" },
+    { "shell":"echo 'bar'", "when": {"after":"foo"} }
+  ],
+  "remotes": [
+    "host1:1970",
+    "host2:1970",
+  ]
+}
+
+jobs must have at least a class, code, or shell parameter.
+
+jobs options :
+
+  name     = "jobname" (default=first word of class/code/shell)
+  shell    = cmd
+  nice     = int -20(fast) > 19(slow)
+  class    = perl class::name with ->new and ->run([args]) methods
+  package  = perl class::name to use
+  args     = array of arguments given to the class
+  code     = perl_code_to_eval
+  priority = 1-10 (1=slow,10=speed,default=5) 
+  if       = perl_code_to_eval as start condition
+  logfile  = filename for job log output
+  when     = {
+     dayofweek:"all|sat,mon,1-7" 1=monday, time:"hh:mm,hh:mm,.."
+     dayofmonth:"all|1-31,...", time:"hh:mm,hh:mm,..."
+     dayofyear:"all|1-365,...", time:"hh:mm,hh:mm,..."
+     repeat:seconds
+     after:"job1 or job2 and job3"
+     start:"yyyy-mm-dd hh:mm"
+     delay:seconds
+     count:nbtime
+  } default={ count:1 }
+
+## USECASE
+
+joq -d
+telnet localhost 1970
+addjob myscript repeat=120
+list
+status
+quit
 
 
