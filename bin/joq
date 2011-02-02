@@ -25,7 +25,7 @@ if( $help ) {
 	{
 		print <<EOHELP
 JOQ v$joq::VERSION
-niko °L° 2010
+niko °L° 2010-2011
 
 syntax:
 $0 [options] [configfile]
@@ -37,11 +37,11 @@ avalaible options :
  -f -file filename     : config file to load
  -ll -loglevel level   : error,warning,notice,info(default),debug
  -lf -logfile filename : output log to filename
- -s -server host:port  : set telnet server
+ -s -server host:port  : set telnet/client server
                          disabled= -s off
                           default= -s localhost:1970
  -p -poll -polling s   : set polling to s seconds (default=10s)
- -b -backup file       : set where current state is backuped
+ -b -backup file       : set where current state is saved
  -tz -timezone zone    : set time zone (default=Europe/Paris)
  -q -oneshot           : quit on empty queue
  -m -maxfork int       : set max concurent job (default=4)
@@ -75,7 +75,7 @@ jobs must have at least a class, code, or shell parameter.
 jobs options :
 
   name     = "jobname" (default=first word of class/code/shell)
-  shell    = cmd
+  shell    = sh cmd
   nice     = int -20(fast) > 19(slow)
   class    = perl class::name with ->new and ->run([args]) methods
   package  = perl class::name to use
@@ -105,18 +105,18 @@ die "sorry master but I don't understand\n".
     "$confile is not readable, you mean -$confile perhaps\n"
 	unless !$confile || -r $confile;
 my %o = %{ joq::load( $confile ) };
-$o{server}   = $server if $server;
-$o{polling}  = $polling if $polling;
-$o{backup}   = $backup if $backup;
-$o{oneshot}  = 1 if $oneshot;
-$o{maxfork}  = $maxfork if $maxfork;
+$o{server}  = $server if $server;
+$o{polling} = $polling if $polling;
+$o{backup}  = $backup if $backup;
+$o{oneshot} = 1 if $oneshot;
+$o{maxfork} = $maxfork if $maxfork;
 if( $daemonize ) {
 	delete $o{log}->{screen} if exists $o{log}->{screen};
 } else {
 	$o{log}->{screen} = 'color' unless exists $o{log};
 }
-$o{log}->{level}  = $loglevel if $loglevel;
-$o{log}->{file}   = $logfile if $logfile;
+$o{log}->{level} = $loglevel if $loglevel;
+$o{log}->{file}  = $logfile if $logfile;
 
 if( $user ) {
 	die("you must be root to change uid to $user\n") unless $< == 0;
