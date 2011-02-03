@@ -14,8 +14,8 @@ use constant BUFSIZE => 16384;
 sub readfile {
 	my $fn   = shift || die('what file?');
 	my $mode = shift || '<:encoding(UTF-8)';
-	open(FH, $mode, $fn) or die('cannot open file '.$fn.' : '.$!);
 	my $data = '';
+	open(FH, $mode, $fn) or die('cannot open file '.$fn.' : '.$!);
 	read( FH, $data, BUFSIZE, length $data ) while !eof(FH);
 	close FH;
 	wantarray ? split /\r\n|\n/, $data : $data;
