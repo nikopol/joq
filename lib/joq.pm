@@ -7,7 +7,7 @@ use Socket;
 use AnyEvent;
 use AnyEvent::Socket;
 use Try::Tiny;
-use JSON::XS;
+use Time::HiRes qw( sleep );
 
 use joq::file;
 use joq::logger;
@@ -18,12 +18,15 @@ use joq::remote;
 use joq::output;
 
 use constant {
-	SHELLCLOSE => 0,
-	SHELLOK    => 1,
-	SHELLOKNP  => 2,
+	SHELLCLOSE  => 0,
+	SHELLOK     => 1,
+	SHELLOKNP   => 2,
+
+	READBUFSIZE => 4096,
+	MAXBUFSIZE  => 4194304,
 };
 
-our $VERSION = '0.01';
+our $VERSION = '0.0.02';
 
 our %cfg = (
 	server    => 'localhost:1970',
@@ -60,9 +63,11 @@ sub load {
 	my $data = {};
 	if( $file ) {
 		try {
+			#log::debug("load ".length($arg)." bytes");
 			$data = parsefile( $file );
 		} catch {
-			log::error("reading/parsing $file : $_");
+			my $f = length($file)>1024 ? substr($file,0,1024)."... [".length($file)." bytes]" : $file;
+			log::error("reading/parsing $f : $_");
 		};
 	}
 	$data;
@@ -168,7 +173,7 @@ sub run {
 
 			add => { alias => 'addjob' },
 			addjob => {
-				txt => <<EOADDTXT
+				txt => <<EOTXT
 add a job in queue
     options:   name=jobname   : set job's nickname
               delay=seconds   : time to wait from job creation before start
@@ -188,15 +193,15 @@ add a job in queue
            logfile=filename   : log filename of job output
 
    eg: addjob ls -l repeat=20
-EOADDTXT
+EOTXT
 				,
 				arg => "[shell|code|class] cmd [args] [opts]",
 				bin => sub {
 					my( $out, $arg ) = @_;
-					my @args = split / /,$arg;
+					my @args = split /\s+/,$arg;
 					my $cmd = shift @args;
 					my $typ = 'shell';
-					if( $cmd =~ /^(shell|code|class)$/i ) {
+					if( $cmd && $cmd =~ /^(shell|code|class)$/i ) {
 						$typ = lc $cmd;
 						$cmd = shift @args;
 					}
@@ -256,7 +261,7 @@ EOADDTXT
 					my( $out, $arg ) = @_;
 					my @lines;
 					if( $arg ) {
-						foreach( split / /,$arg ) {
+						foreach( split /\s+/,$arg ) {
 							if( joq::queue::deljob( $_ ) ) {
 								push @lines, 'job '.$_.' removed';
 								backup;
@@ -279,7 +284,7 @@ EOADDTXT
 				arg => "[cmd1 [cmd2 ...]]",
 				bin => sub {
 					my( $out, $arg ) = @_;
-					my @args = $arg ? split / /,$arg : ();
+					my @args = $arg ? split /\s+/,$arg : ();
 					my @cmds = sort keys %tcp_commands;
 					if( @args ) {	
 						my %help;
@@ -360,7 +365,7 @@ EOADDTXT
 					my($out,$arg) = @_;
 					my @jobids = joq::queue::jobids;
 					if( @jobids ) {
-						my @l = $arg ? split / /,$arg : @jobids;
+						my @l = $arg ? split /\s+/,$arg : @jobids;
 						my @lines;
 						foreach( @l ) {
 							my $job = joq::queue::job( $_ );
@@ -389,11 +394,11 @@ EOADDTXT
 			},
 
 			load => {
-				txt => <<EOLOADTXT
+				txt => <<EOTXT
 load jobs from a file or string.
 yaml and json are both accepted.
 only the "jobs" key will be processed, other entries such as joq parameters are ignored.
-EOLOADTXT
+EOTXT
 				,
 				arg => 'filename or string',
 				bin => sub {
@@ -422,7 +427,7 @@ EOLOADTXT
 				bin => sub { 
 					my($out,$arg,$cnxid) = @_;
 					my($mod,$lev);
-					foreach( split / /,$arg ) {
+					foreach( split /\s+/,$arg ) {
 						$lev = $_ if /error|warning|info|notice|debug/i;
 						$mod = $_ if /short|long|color/i;
 					}
@@ -451,7 +456,7 @@ EOLOADTXT
 				bin => sub {
 					my($out,$arg) = @_;
 					if( $arg ) {
-						my @args = split / /, $arg;
+						my @args = split /\s+/, $arg;
 						my $cmd = shift @args;
 						if( $cmd =~ /del|\-/i ) {
 							$out->send(joq::remote::del( shift @args ).' remotes deleted');
@@ -499,7 +504,7 @@ EOLOADTXT
 			set => { alias => 'setup' },
 			setup => {
 				txt => 'set (or get without value) an joq parameter',
-				txt => <<EOSETTXT
+				txt => <<EOTXT
 set (or get without value) an joq parameter
  parameters:  polling [sec] : delay between two jobs polling
               oneshot [0|1] : halt when queue is empty
@@ -509,13 +514,13 @@ set (or get without value) an joq parameter
           termtimeout [sec] : delay between a TERMinate and a KILL
                               when you stop a running job
              loglevel level : error|warning|notice|info|debug
-EOSETTXT
+EOTXT
 				,
 				arg => 'parameter [value]',
 				bin => sub {
 					my($out,$arg) = @_;
 					my $params = join('|', keys %joq::cfg, keys %joq::queue::cfg, keys %joq::job::cfg );
-					my @args   = split / |\=/, ($arg || '');
+					my @args   = split /\s+|\=/, ($arg || '');
 					my $key    = shift @args;
 					unless( $key || ! $key =~ /^$params$/ ) {
 						$out->error('what parameter ?');
@@ -647,57 +652,98 @@ EOINTRO
 			syswrite $fh, '>';
 			my $out = joq::output->new;
 			my $lastcmd = 'status';
+
 			my $io; $io = AnyEvent->io(
 				fh   => $fh,
 				poll => 'r',
 				cb   => sub {
 					log::rmout( $cnxid );
-					my $r = sysread $fh, my $buf, 16384;
-					unless(defined $r) {
-						#?!
-					} elsif( $r==0 ) {
+					my $fixlen = 0;
+					my $buflen = 0;
+					my $nbwait = 0;
+					my $buf = '';
+					my $loop;
+					my $r;
+					do {
+						$r = sysread $fh, $buf, READBUFSIZE, $buflen;
+						if( defined $r ) {
+							if( $r && !$fixlen && $buf =~ /^<(\d+)>/ ) {
+								$fixlen = $1;
+								$buf =~ s/^<\d+>//;
+							}
+							$buflen = length($buf);
+							$loop = $buf!~/\n$/;
+							$loop ||= $buflen<$fixlen if $fixlen;
+						} else {
+							my $e = $!;
+							if($e eq 'Resource temporarily unavailable') {
+								$nbwait++;
+								sleep 0.1;
+							} else {
+								log::debug("error while reading socket (ignored) : $!");
+							}
+						}
+					} while( !defined $r || ($r && $buflen<MAXBUFSIZE && $loop) );
+					log::debug('error while reading socket (ignored) : Resource temporarily unavailable x'.$nbwait) if $nbwait;
+					unless( $r ) {
 						undef $io;
 					} else {
 						my $cr = SHELLOK;
-						chomp $buf;
-						$out->{fh} = $fh;
-						foreach my $line ( split /\n/, $buf ) {
-							$line =~ s/^\s+//;
-							$line =~ s/\s+$//;
-							$line = $lastcmd unless $line;
-							$lastcmd = $line;
-							my @args = split / /,$line;
-							#check for @host directive
-							my @at = grep { /^@/ } @args;
-							@args = grep { ! /^@/ } @args;
-							my $cmd = lc( shift @args );
-							my $arg = join ' ', @args;
-							if( my $sub = $tcp_commands{$cmd} ) {
-								$cmd = $sub->{alias} if $sub->{alias};
-								$sub = $tcp_commands{$cmd};
-								my @remotes;
-								if( @at ) {
-									map { s/^@// } @at;
-									foreach( @at ) {
-										my @atok = joq::remote::find($_);
-										if( @atok ) { push @remotes, @atok; }
-										else { syswrite $fh, "unknow server $_\n"; }
-									}
-									my %h;
-									@remotes = grep { !$h{$_}++ } @remotes;
+						if( $buf ) {
+							chomp $buf;
+							$out->{fh} = $fh;
+							my @lines = $fixlen ? ( $buf ) : split /\n/, $buf;
+							foreach my $line ( @lines ) {
+								$line =~ s/^\s+//;
+								$line =~ s/\s+$//;
+								if( $line ) {
+									$lastcmd = $line;
 								} else {
-									@remotes = joq::remote::synced;
+									$line = $lastcmd;
 								}
-								log::debug("execute $cmd($arg) from $cnxid");
-								joq::remote::exec("$cmd $arg", \@remotes, $fh) 
-									if @remotes && $cmd =~ /load|list|show|add|del|stop|killall|shutdown/;
-								$cr = $sub->{bin}($out,$arg,$cnxid) unless @at;
-								undef $io if $cr == SHELLCLOSE;
-							} else {
-								syswrite $fh, "what?! try \"help\"\n";
+								$line =~ s/^(\w+)(\s|$)//;
+								my $cmd = $1;
+								$line =~ s/^\s+//;
+								my @at;
+								my $arg;
+								if( $line =~ /^\{.*\}$/ ) {
+									$arg = $line;
+								} else {
+									my @args = split / /, $line;
+									#check for @host directive
+									@at = grep { /^@/ } @args;
+									@args = grep { ! /^@/ } @args;
+									$arg = join ' ', @args;
+								}
+								if( my $sub = $tcp_commands{$cmd} ) {
+									$cmd = $sub->{alias} if $sub->{alias};
+									$sub = $tcp_commands{$cmd};
+									my @remotes;
+									if( @at ) {
+										map { s/^@// } @at;
+										foreach( @at ) {
+											my @atok = joq::remote::find($_);
+											if( @atok ) { push @remotes, @atok; }
+											else { syswrite $fh, "unknow server $_\n"; }
+										}
+										my %h;
+										@remotes = grep { !$h{$_}++ } @remotes;
+									} else {
+										@remotes = joq::remote::synced;
+									}
+									my $dbg = "$cmd($arg)";
+									$dbg = substr($dbg,0,253)."..." if length($dbg)>256;
+									log::debug("execute $dbg [".length($arg)." bytes] from $cnxid");
+									joq::remote::exec("$cmd $arg", \@remotes, $fh) 
+										if @remotes && $cmd =~ /load|list|show|add|del|stop|killall|shutdown/;
+									$cr = $sub->{bin}($out,$arg,$cnxid) unless @at;
+									undef $io if $cr == SHELLCLOSE;
+								} else {
+									syswrite $fh, "what?! try \"help\"\n";
+								}
 							}
+							syswrite $fh, '>' if $cr == SHELLOK;
 						}
-						syswrite $fh, '>' if $cr == SHELLOK;
 					}
 					log::info("connection closed from $cnxid") unless $io;
 				},
@@ -722,11 +768,12 @@ __END__
 
 =head1 NAME
 
-joq -
+joq 
 
 =head1 SYNOPSIS
 
   use joq;
+  joq::load(shift @ARGV) if @ARGV;
   joq::run;
 
 =head1 DESCRIPTION

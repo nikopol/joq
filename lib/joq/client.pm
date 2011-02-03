@@ -89,8 +89,10 @@ sub disconnect {
 sub cmd {
 	my( $self, $cmd ) = @_;
 	return 'not connected' unless $self->{sock};
-	print "SEND => $cmd\n" if $self->{debug};
-	syswrite $self->{sock}, $cmd."\n" || return $self->error("write error");
+	$cmd .= "\n";
+	print "SEND => $cmd" if $self->{debug};
+	syswrite $self->{sock}, '<'.length($cmd).'>' || return $self->error("write error");
+	syswrite $self->{sock}, $cmd || return $self->error("write error");
 	join("\n", @{$self->read});
 }
 
