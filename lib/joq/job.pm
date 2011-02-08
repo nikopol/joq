@@ -253,7 +253,7 @@ sub start {
 					log::notice($_,undef,$job->{pid}) foreach @lines;
 				} elsif( $r <= 0 ) {
 					log::debug(($r==0?'end of':'broken').' STDOUT pipe! '.$job->{fullname}.($werr?'':' finishing'));
-					finish( $job ) unless $werr;
+					finished( $job ) unless $werr;
 					close $readout;
 					undef $wout;
 				}
@@ -272,7 +272,7 @@ sub start {
                     log::error($_,undef,$job->{pid}) foreach @lines;
                 } elsif( $r <= 0 ) {
                     log::debug(($r==0?'end of':'broken').' STDERR pipe! '.$job->{fullname}.($wout?'':' finishing'));
-                    finish( $job ) unless $wout;
+                    finished( $job ) unless $wout;
 					close $readerr;
 					undef $werr;
                 }
@@ -371,7 +371,7 @@ sub e2date {
 	$d->ymd.' '.$d->hms;
 }
 
-sub finish {
+sub finished {
 	my( $job, $exitcode ) = @_;
 	return 0 unless $job->{pid};
 	$job->{when}->{count}-- if defined $job->{when}->{count};
@@ -404,27 +404,27 @@ sub running {
 	if( $r > 0 ) {
 		#terminated
 		log::debug($job->{fullname}.' pid terminated');
-		finish( $job, $c );
+		finished( $job, $c );
 	} elsif( $r == -1 ) {
 		#not exists ?!
 		log::debug($job->{fullname}.' pid don\'t exists');
-		finish( $job, $c );
+		finished( $job, $c );
 	}
 	$job->{pid};
 }
 
 sub stop {
 	my $job = shift;
-	return undef unless running( $job );
+	return undef unless my $jid = running( $job );
 	log::debug($job->{fullname}.' send term signal');
-	kill 15, $job->{pid};
+	kill 15, $jid;
 }
 
 sub kill {
 	my $job = shift;
-	return undef unless running( $job );
+	return undef unless my $jid = running( $job );
 	log::debug($job->{fullname}.' send kill signal');
-	kill 9, $job->{pid};
+	kill 9, $jid;
 }
 
 sub calcnextstart {

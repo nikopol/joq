@@ -551,7 +551,8 @@ EOTXT
 							if( $job ) {
 								$out->dump($job,'job');
 							} else {
-								$out->dump(joq::queue::deadjobs( $arg ), 'history');
+								my $deads = joq::queue::deadjobs( $arg );
+								$out->dump($deads, 'history') if $deads;
 							}
 						}
 					} else {
@@ -652,47 +653,30 @@ EOINTRO
 			syswrite $fh, '>';
 			my $out = joq::output->new;
 			my $lastcmd = 'status';
+			my $buf = '';
+			my $buflen = 0;
 
 			my $io; $io = AnyEvent->io(
 				fh   => $fh,
 				poll => 'r',
 				cb   => sub {
 					log::rmout( $cnxid );
-					my $fixlen = 0;
-					my $buflen = 0;
-					my $nbwait = 0;
-					my $buf = '';
-					my $loop;
-					my $r;
-					do {
-						$r = sysread $fh, $buf, READBUFSIZE, $buflen;
-						if( defined $r ) {
-							if( $r && !$fixlen && $buf =~ /^<(\d+)>/ ) {
-								$fixlen = $1;
-								$buf =~ s/^<\d+>//;
-							}
-							$buflen = length($buf);
-							$loop = $buf!~/\n$/;
-							$loop ||= $buflen<$fixlen if $fixlen;
-						} else {
-							my $e = $!;
-							if($e eq 'Resource temporarily unavailable') {
-								$nbwait++;
-								sleep 0.1;
-							} else {
-								log::debug("error while reading socket (ignored) : $!");
-							}
-						}
-					} while( !defined $r || ($r && $buflen<MAXBUFSIZE && $loop) );
-					log::debug('error while reading socket (ignored) : Resource temporarily unavailable x'.$nbwait) if $nbwait;
-					unless( $r ) {
+					my $rcv= <$fh>;
+					unless( $rcv ) {
 						undef $io;
 					} else {
+
+						$buf .= $rcv;	
+						if( !$buflen && $buf =~ /^<(\d+)>/ ) {
+							$buflen = $1;
+							$buf =~ s/^<\d+>//;
+						}
+
 						my $cr = SHELLOK;
-						if( $buf ) {
+						if( $buf && (($buflen && length($buf)>=$buflen) || (!$buflen && $buf =~ /\n$/)) ) {
 							chomp $buf;
 							$out->{fh} = $fh;
-							my @lines = $fixlen ? ( $buf ) : split /\n/, $buf;
+							my @lines = $buflen ? ( $buf ) : split /\n/, $buf;
 							foreach my $line ( @lines ) {
 								$line =~ s/^\s+//;
 								$line =~ s/\s+$//;
@@ -733,7 +717,7 @@ EOINTRO
 									}
 									my $dbg = "$cmd($arg)";
 									$dbg = substr($dbg,0,253)."..." if length($dbg)>256;
-									log::debug("execute $dbg [".length($arg)." bytes] from $cnxid");
+									log::info("execute $dbg [".length($arg)." bytes] from $cnxid");
 									joq::remote::exec("$cmd $arg", \@remotes, $fh) 
 										if @remotes && $cmd =~ /load|list|show|add|del|stop|killall|shutdown/;
 									$cr = $sub->{bin}($out,$arg,$cnxid) unless @at;
@@ -743,6 +727,8 @@ EOINTRO
 								}
 							}
 							syswrite $fh, '>' if $cr == SHELLOK;
+							$buf = '';
+							$buflen = 0;
 						}
 					}
 					log::info("connection closed from $cnxid") unless $io;
@@ -759,7 +745,7 @@ EOINTRO
 	my $r = $w->recv;
 	joq::queue::killall;
 	backup;
-	log::notice('stopped ('.$r.')');
+	log::notice('shutdown ('.$r.')');
 	$r;
 }
 
