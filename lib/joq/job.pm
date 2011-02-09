@@ -9,6 +9,7 @@ use AnyEvent;
 use DateTime;
 use Try::Tiny;
 
+use joq;
 use joq::logger;
 
 use constant {
@@ -293,6 +294,7 @@ sub start {
 	open STDERR, '>&', $writerr;
 
 	setpriority(0,0,$job->{nice}) if $job->{nice};
+	joq::stopevents();
 	sleep 1; #wait for parent event hook
 
 	my $e = 0;
@@ -416,8 +418,8 @@ sub running {
 sub stop {
 	my $job = shift;
 	return undef unless my $jid = running( $job );
-	log::debug($job->{fullname}.' send term signal');
-	kill 15, $jid;
+	log::debug($job->{fullname}.' send int signal');
+	kill 2, $jid;
 }
 
 sub kill {
