@@ -179,25 +179,28 @@ sub table {
 		}
 		@colkeys = keys %cols;
 	}
-	#calc line separator
-	my $sep = '+';
-	$sep .= ('-' x $cols{$_}).'+' for( @colkeys );
+	#calc utf8 line separator
+	my @cels = map { '─' x $cols{$_} } @colkeys;
+	my $sep1 = '┌'.join('┬',@cels).'┐';
+	my $sep2 = '├'.join('┼',@cels).'┤';
+	my $sep3 = '└'.join('┴',@cels).'┘';
+	my $vert = '│';
 	#header
-	my $out = "$sep\n";
+	my $out = "$sep1\n";
 	if( $hmode ) {
-		$out .= '|';
-		$out .= $self->center($_,$cols{$_}).'|' for( @colkeys );
-		$out .= "\n$sep\n";
+		$out .= $vert;
+		$out .= $self->center($_,$cols{$_}).$vert for( @colkeys );
+		$out .= "\n$sep2\n";
 	}
 	#rows
 	for my $row (@$list) {
-		$out .= '|';
+		$out .= $vert;
 		for( @colkeys ) {
-			$out .= $self->left( defined $row->{$_} ? $row->{$_} : '',  $cols{$_}).'|';
+			$out .= $self->left( defined $row->{$_} ? $row->{$_} : '',  $cols{$_}).$vert;
 		}
 		$out .= "\n";
 	}
-	$out .= "$sep";
+	$out .= "$sep3";
 }
 
 1
