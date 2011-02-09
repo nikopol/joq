@@ -21,12 +21,9 @@ use constant {
 	SHELLCLOSE  => 0,
 	SHELLOK     => 1,
 	SHELLOKNP   => 2,
-
-	READBUFSIZE => 4096,
-	MAXBUFSIZE  => 4194304,
 };
 
-our $VERSION = '0.0.02';
+our $VERSION = '0.0.03';
 
 our %cfg = (
 	server    => 'localhost:1970',
@@ -113,6 +110,8 @@ sub config {
 	}
 	$cfg{$key};
 }
+
+sub stopevents { delete $watch{$_} for( keys %watch ) }
 
 sub addjobs { joq::queue::addjobs( shift ); }
 sub addjob { joq::queue::addjob( shift ); }
