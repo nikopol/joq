@@ -3,6 +3,7 @@ package joq::queue;
 use strict;
 use warnings;
 
+use Time::HiRes qw(sleep);
 use joq::logger;
 use joq::job;
 
