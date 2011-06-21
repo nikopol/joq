@@ -50,7 +50,6 @@ jobs options :
   args     = array of arguments given to the class
   code     = perl_code_to_eval
   priority = 1-10 (1=slow,10=speed,default=5) 
-  if       = perl_code_to_eval as start condition
   logfile  = filename for job log output
   when     = {
      dayofweek:"all|sat,mon,1-7" 1=monday, time:"hh:mm,hh:mm,.."
@@ -61,6 +60,7 @@ jobs options :
      start:"yyyy-mm-dd hh:mm"
      delay:seconds
      count:nbtime
+     if: "perl_code_to_eval as start condition"
   } default={ count:1 }
 
 ## USECASE

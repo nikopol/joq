@@ -14,6 +14,7 @@ sub new {
 	my $self = {
 		host  => 'localhost',
 		port  => 1970,
+		mode  => 'json',
 		%o,
 		sock  => undef,
 		error => "",
@@ -96,13 +97,14 @@ sub cmd {
 	join("\n", @{$self->read});
 }
 
-sub mode     { shift->cmd('mode '.(shift|'')) }
-sub load     { shift->cmd('load '.join(' ',@_)) }
-sub list     { shift->cmd('list') }
-sub show     { shift->cmd('show '.join(' ',@_)) }
-sub add      { shift->cmd('add '.join(' ',@_)) }
-sub del      { shift->cmd('del '.join(' ',@_)) }
-sub stop     { shift->cmd('stop '.join(' ',@_)) }
+sub mode { shift->cmd('mode '.(shift|'')) }
+sub load { shift->cmd('load '.join(' ',@_)) }
+sub list { shift->cmd('list') }
+sub show { shift->cmd('show '.join(' ',@_)) }
+sub add  { shift->cmd('add '.join(' ',@_)) }
+sub del  { shift->cmd('del '.join(' ',@_)) }
+sub stop { shift->cmd('stop '.join(' ',@_)) }
+sub save { shift->cmd('save '.join(' ',@_)) }
 sub killall  { shift->cmd('killall') }
 sub shutdown { shift->cmd('shutdown') }
 sub history  { shift->cmd('history '.(shift||'')) }

@@ -166,12 +166,12 @@ sub resume {
 sub status {
 	{
 		maxfork     => $cfg{maxfork},
-		queuedjobs  => scalar keys %jobs,
-		deadjobs    => scalar @history,
-		runningjobs => scalar @runs,
-		runnedjobs  => $runcount,
-		readyjobs   => scalar @readys,
 		status      => $paused?'paused':'running',
+		jobs_queued => scalar keys %jobs,
+		jobs_dead   => scalar @history,
+		jobs_running=> scalar @runs,
+		jobs_run    => $runcount,
+		jobs_ready  => scalar @readys,
 	};
 }
 
