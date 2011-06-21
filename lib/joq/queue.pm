@@ -13,6 +13,7 @@ my @readys;
 my @history;
 my $polling;
 my $runcount = 0;
+my $paused = 0;
 
 our %cfg = (
 	maxfork     => 4,  #max simultaneous running
@@ -149,6 +150,19 @@ sub histurn {
 	scalar @history;
 }
 
+sub pause {
+	return 0 if $paused;
+	log::notice "queue paused";
+	$paused = 1;
+}
+
+sub resume {
+	return 0 unless $paused;
+	log::notice "queue resumed";
+	$paused = 0;
+	1;
+}
+
 sub status {
 	{
 		maxfork     => $cfg{maxfork},
@@ -157,6 +171,7 @@ sub status {
 		runningjobs => scalar @runs,
 		runnedjobs  => $runcount,
 		readyjobs   => scalar @readys,
+		status      => $paused?'paused':'running',
 	};
 }
 
@@ -205,16 +220,18 @@ sub poll {
 			@readys = sort { $jobs{$b}->{order} <=> $jobs{$a}->{order} } @readys;
 		}
 		#runs jobs if fork slot available
-		while( @runs < $cfg{maxfork} && ( my $jid = shift @readys ) ) {
-			my $job = $jobs{$jid};
-			if(joq::job::start( $job )) {
-				push @runs, $jid;
-				$nbevent++;
-			} else {
-				log::error('error starting '.$job->{fullname}.', unqueued');
+		unless( $paused ) {
+			while( @runs < $cfg{maxfork} && ( my $jid = shift @readys ) ) {
+				my $job = $jobs{$jid};
+				if(joq::job::start( $job )) {
+					push @runs, $jid;
+					$nbevent++;
+				} else {
+					log::error('error starting '.$job->{fullname}.', unqueued');
+				}
 			}
 		}
-		log::debug('polling finish with '.scalar @runs.'/'.$cfg{maxfork}.' jobs running, '.scalar @readys.' ready');
+		log::debug('polling finish with '.scalar @runs.'/'.$cfg{maxfork}.' jobs running, '.scalar @readys.' ready'.($paused?' (paused)':''));
 	}
 	$polling = 0;
 	( scalar @jobids, scalar @runs, $nbevent );

@@ -483,7 +483,14 @@ sub startable {
 		my $d = e2date( time );
 		return 0 if(($d cmp $job->{when}->{start}) < 0);
 	}
-	return 0 if $job->{when}->{if} && ! eval($job->{when}->{if});
+	if( $job->{when}->{if} ) {
+		unless( eval($job->{when}->{if}) ) {
+			log::debug $job->{fullname}.' dont pass its if condition';
+			return 0;
+		}
+		log::debug  $job->{fullname}.' validate its if condition';
+	}
+#	return 0 if $job->{when}->{if} && ! eval($job->{when}->{if});
 	if( $job->{when}->{after} ) {
 		my $ok = 0;
 		foreach my $or ( split /[|]| or /i, $job->{when}->{after} ) {

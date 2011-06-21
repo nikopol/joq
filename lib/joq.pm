@@ -23,7 +23,7 @@ use constant {
 	SHELLOKNP   => 2,
 };
 
-our $VERSION = '0.0.03';
+our $VERSION = '0.0.04';
 
 our %cfg = (
 	server    => 'localhost:1970',
@@ -177,7 +177,8 @@ add a job in queue
     options:   name=jobname   : set job's nickname
               delay=seconds   : time to wait from job creation before start
              repeat=seconds   : time between runs (next_run=last_start+repeat)
-              count=count     : how many you wanna run this job (default=1 or infinite)
+              count=count     : how many times you wanna run this job 
+			                    (default=1 or infinite if "repeat" used)
                  if=codeval   : not startable unless this codeval
                nice=-20..19   : nice job's fork (-20=fast,19=slow)
            priority=1..10     : start priority (1=slow,10=speed,default=5)	 
@@ -212,14 +213,12 @@ EOTXT
 						);
 						foreach( @args ) {
 							my ($k, $v) = split /=/;
-							if( $k =~ /^(?:name|logfile|nice|if|priority)$/i && $v ) {
+							if( $k =~ /^(?:name|logfile|nice|priority)$/i && defined $v ) {
 								$jobargs{$k} = $v;
-							} elsif( $k =~ /^(?:delay|repeat|count|after|dayofweek|dow|dayofmonth|dom|dayofyear|doy|time)$/i && $v ) {
+							} elsif( $k =~ /^(?:delay|repeat|count|after|dayofweek|dow|dayofmonth|dom|dayofyear|doy|time|if)$/i && defined $v ) {
 								$jobargs{when}->{$k} = $v;
-							} elsif( $typ eq 'code' ) {
-								$jobargs{code}.= ' '.$_;
 							} else {
-								push @{$jobargs{args}}, $_;
+								$jobargs{$typ}.= ' '.$_;
 							}
 						}
 						unless( $jobargs{name} ) {
@@ -445,6 +444,16 @@ EOTXT
 				}
 			},
 
+			pause => {
+				txt => 'set queue in pause',
+				bin => sub {
+					shift->send( joq::queue::pause()
+						? 'queue paused'
+						: 'queue already paused'
+					)
+				}
+			},
+
 			quit  => { alias => 'close' },
 
 			rm => { alias => 'del' },
@@ -481,7 +490,17 @@ EOTXT
 					SHELLOK;
 				}
 			},
-			
+
+			resume => {
+				txt => 'resume queue',
+				bin => sub {
+					shift->send( joq::queue::resume()
+						? 'queue resumed'
+						: 'queue not paused'
+					)
+				}
+			},
+		
 			save => {
 				txt => 'save current joq state to a file',
 				arg => 'filename',
@@ -728,7 +747,7 @@ EOINTRO
 							syswrite $fh, '>' if $cr == SHELLOK;
 							$buf = '';
 							$buflen = 0;
-						}
+						 }
 					}
 					log::info("connection closed from $cnxid") unless $io;
 				},

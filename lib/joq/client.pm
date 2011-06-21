@@ -96,17 +96,19 @@ sub cmd {
 	join("\n", @{$self->read});
 }
 
-sub mode { shift->cmd('mode '.(shift|'')); }
-sub load { shift->cmd('load '.join(' ',@_)); }
-sub list { shift->cmd('list'); }
-sub show { shift->cmd('show '.join(' ',@_)); }
-sub add  { shift->cmd('add '.join(' ',@_)); }
-sub del  { shift->cmd('del '.join(' ',@_)); }
-sub stop { shift->cmd('stop '.join(' ',@_)); }
-sub killall { shift->cmd('killall'); }
-sub shutdown { shift->cmd('shutdown'); }
-sub history { shift->cmd('history '.(shift||'')); }
-sub status { shift->cmd('status'); }
+sub mode     { shift->cmd('mode '.(shift|'')) }
+sub load     { shift->cmd('load '.join(' ',@_)) }
+sub list     { shift->cmd('list') }
+sub show     { shift->cmd('show '.join(' ',@_)) }
+sub add      { shift->cmd('add '.join(' ',@_)) }
+sub del      { shift->cmd('del '.join(' ',@_)) }
+sub stop     { shift->cmd('stop '.join(' ',@_)) }
+sub killall  { shift->cmd('killall') }
+sub shutdown { shift->cmd('shutdown') }
+sub history  { shift->cmd('history '.(shift||'')) }
+sub status   { shift->cmd('status') }
+sub pause    { shift->cmd('pause') }
+sub remuse   { shift->cmd('resume') }
 
 1;
 __END__
