@@ -274,6 +274,7 @@ EOTXT
 				}
 			},
 
+			exit => { alias => 'close' },
 			halt => { alias => 'shutdown' },
 
 			help => {

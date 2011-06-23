@@ -31,10 +31,6 @@ sample config file :
     { "name":"foo", "shell":"ls", "args":"/", "when": { "delay":0 } },
     { "code":"for(qw/un deux trois quatre cinq/){ print "$_\n"; sleep 1 }" },
     { "shell":"echo 'bar'", "when": {"after":"foo"} }
-  ],
-  "remotes": [
-    "host1:1970",
-    "host2:1970",
   ]
 }
 
@@ -58,9 +54,9 @@ jobs options :
      repeat:seconds
      after:"job1 or job2 and job3"
      start:"yyyy-mm-dd hh:mm"
+     if:perl_code_to_eval as start condition
      delay:seconds
      count:nbtime
-     if: "perl_code_to_eval as start condition"
   } default={ count:1 }
 
 ## USECASE
