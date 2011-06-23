@@ -12,7 +12,6 @@ use Time::HiRes qw( sleep );
 use joq::file;
 use joq::logger;
 use joq::queue;
-use joq::client;
 use joq::job;
 use joq::remote;
 use joq::output;
@@ -23,7 +22,7 @@ use constant {
 	SHELLOKNP   => 2,
 };
 
-our $VERSION = '0.0.04';
+our $VERSION = '0.0.05';
 
 our %cfg = (
 	server    => 'localhost:1970',

@@ -19,10 +19,10 @@ GetOptions(
 
 my $o = {
 	debug => $debug || 0,
-	host  => $host || 'localhost',
-	port  => $port || 1970,
+	host  => $host  || 'localhost',
+	port  => $port  || 1970,
+	mode  => $mode  || 'text',
 };
-$o->{mode} = $mode if $mode;
 
 sub help {
 	print <<EOHELP
@@ -105,6 +105,6 @@ die("i've searched hard, deep and carefully, but i didn't find this command\n")
 	unless exists $commands{$cmd};
 
 $client = joq::client->new(%$o);
-die("unable to connect\n".($client->error."\n"||"")) unless $client && $client->connected;
+die("unable to connect\n".$client->error."\n") unless $client && $client->connected;
 print $commands{$cmd}(@ARGV),"\n";
 0;

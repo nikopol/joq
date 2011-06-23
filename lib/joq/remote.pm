@@ -103,6 +103,7 @@ sub exec {
 				$s->{log} = joq::client->new(
 					host=>$s->{host},
 					port=>$s->{port},
+					mode=>'json',
 				)->cmd( $cmd );
 				my @outs = split /\n/,  $s->{log};
 				foreach( @outs ) {

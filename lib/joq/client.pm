@@ -4,6 +4,7 @@ use strict;
 use warnings;
 
 use Socket;
+use JSON::XS;
 
 use constant MAXLOGLINES => 20;
 use constant READTIMEOUT => 10;
@@ -12,14 +13,16 @@ sub new {
 	my $class = shift;
 	my %o = @_;
 	my $self = {
-		host  => 'localhost',
-		port  => 1970,
-		mode  => 'json',
+		host   => 'localhost',
+		port   => 1970,
+		mode   => 'perl',
 		%o,
-		sock  => undef,
-		error => "",
-		log   => [],
+		sock   => undef,
+		error  => "",
+		log    => [],
 	};
+	$self->{decode} = $self->{mode} eq 'perl';
+	$self->{imode}  = $self->{decode} ? 'json' : $self->{mode};
 	bless $self, $class;
 	my $r = $self->connect;
 	print "connecting to ".$self->{host}.":".$self->{port}." ... ".($r||$self->{error})."\n"
@@ -30,7 +33,7 @@ sub new {
 sub error {
 	my( $self, $err ) = @_;
 	return $self->{error} unless $err;
-	print "ERROR: $err\n" if $self->{debug};
+	warn "ERROR: $err\n" if $self->{debug};
 	$self->{error} = $err;
 	0;
 }
@@ -51,7 +54,7 @@ sub connect {
 	connect( $sock, $padd ) or return $self->error("can't connect to ".$self->{host}.":".$self->{port});
 	$self->{sock} = $sock;
 	$self->read();
-	$self->mode( $self->{mode} ) if $self->{mode};
+	$self->mode( $self->{imode} ) if $self->{imode};
 }
 
 sub read {
@@ -94,7 +97,8 @@ sub cmd {
 	print "SEND => $cmd" if $self->{debug};
 	syswrite $self->{sock}, '<'.length($cmd).'>' || return $self->error("write error");
 	syswrite $self->{sock}, $cmd || return $self->error("write error");
-	join("\n", @{$self->read});
+	my $r = join("\n", @{$self->read});
+	$self->{decode} ? decode_json( $r ) : $r;
 }
 
 sub mode { shift->cmd('mode '.(shift|'')) }
