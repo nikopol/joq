@@ -40,7 +40,7 @@ sub init {
 	%arg = ( %{load($arg{file})||{}}, %arg ) if $arg{file};
 	#setup log
 	log::setup( %{$arg{log}} ) if $arg{log};
-	log::info('init! version='.$VERSION.' pid='.$$.' uid='.$<);
+	log::notice('JoQ version='.$VERSION.' pid='.$$.' uid='.$<);
 	#setup core/queue/job
 	for(keys %joq::cfg) { joq::config( $_, $arg{$_} ) if exists $arg{$_}; }
 	for(keys %joq::queue::cfg) { joq::queue::config( $_, $arg{$_} ) if exists $arg{$_}; }
@@ -122,7 +122,7 @@ sub setpoll {
 		interval => $sec,
 		cb       => sub { joq::poll() },
 	);
-	log::notice('polling set to '.$sec.'s');
+	log::info('polling set to '.$sec.'s');
 }
 
 sub poll {
@@ -752,12 +752,12 @@ EOINTRO
 				},
 			);
 		});
-		log::notice('server started on '.$ip.':'.$port);
+		log::info('server started on '.$ip.':'.$port);
 	}
 
-	log::info('event loop, impl='.AnyEvent::detect);
+	log::debug('event loop, impl='.AnyEvent::detect);
 	backup;
-	log::notice('started');
+	log::debug('started');
 	joq::poll;
 	my $r = $w->recv;
 	joq::queue::killall;
