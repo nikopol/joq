@@ -59,7 +59,6 @@ sub load {
 	my $data = {};
 	if( $file ) {
 		try {
-			#log::debug("load ".length($arg)." bytes");
 			$data = parsefile( $file );
 		} catch {
 			my $f = length($file)>1024 ? substr($file,0,1024)."... [".length($file)." bytes]" : $file;
@@ -197,7 +196,7 @@ EOTXT
 				arg => "[shell|code|class] cmd [args] [opts]",
 				bin => sub {
 					my( $out, $arg ) = @_;
-					my @args = split /\s+/,$arg;
+					my @args = split /\s/,$arg;
 					my $cmd = shift @args;
 					my $typ = 'shell';
 					if( $cmd && $cmd =~ /^(shell|code|class)$/i ) {
@@ -210,14 +209,14 @@ EOTXT
 							when  => {},
 							args  => [],
 						);
-						foreach( @args ) {
-							my ($k, $v) = split /=/;
+						foreach my $a ( @args ) {
+							my($k,$v) = $a =~ /^([^=]+)=(.+)$/;
 							if( $k =~ /^(?:name|logfile|nice|priority)$/i && defined $v ) {
 								$jobargs{$k} = $v;
 							} elsif( $k =~ /^(?:delay|repeat|count|after|dayofweek|dow|dayofmonth|dom|dayofyear|doy|time|if)$/i && defined $v ) {
 								$jobargs{when}->{$k} = $v;
 							} else {
-								$jobargs{$typ}.= ' '.$_;
+								$jobargs{$typ}.= ' '.$a;
 							}
 						}
 						unless( $jobargs{name} ) {
