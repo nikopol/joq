@@ -22,7 +22,7 @@ use constant {
 	SHELLOKNP   => 2,
 };
 
-our $VERSION = '0.0.05';
+our $VERSION = '0.0.06';
 
 our %cfg = (
 	server    => 'localhost:1970',
@@ -37,21 +37,21 @@ my $w;
 
 sub init {
 	my %arg = @_;
-	%arg = ( %{load($arg{file})||{}}, %arg ) if $arg{file};
+	%arg = ( %{load($arg{file})}, %arg ) if $arg{file};
 	#setup log
 	log::setup( %{$arg{log}} ) if $arg{log};
 	log::notice('JoQ version='.$VERSION.' pid='.$$.' uid='.$<);
 	#setup core/queue/job
-	for(keys %joq::cfg) { joq::config( $_, $arg{$_} ) if exists $arg{$_}; }
-	for(keys %joq::queue::cfg) { joq::queue::config( $_, $arg{$_} ) if exists $arg{$_}; }
-	for(keys %joq::job::cfg) { joq::job::config( $_, $arg{$_} ) if exists $arg{$_}; }
+	for(keys %joq::cfg)        { joq::config( $_, $arg{$_} ) if exists $arg{$_} }
+	for(keys %joq::queue::cfg) { joq::queue::config( $_, $arg{$_} ) if exists $arg{$_} }
+	for(keys %joq::job::cfg)   { joq::job::config( $_, $arg{$_} ) if exists $arg{$_} }
 	#setup remotes
 	if( $arg{remotes} ) {
 		my @l = ref($arg{remotes}) eq 'ARRAY' ? @{$arg{remotes}} : split /,/,$arg{remotes};
 		joq::remote::add( $_ ) foreach( @l );
 	}
 	#enqueue jobs
-	addjobs( $arg{jobs} ) if $arg{jobs};
+	addjobs( $arg{jobs}, $arg{file} ) if $arg{jobs};
 }
 
 sub load {
@@ -59,6 +59,7 @@ sub load {
 	my $data = {};
 	if( $file ) {
 		try {
+			log::debug("loading $file");
 			$data = parsefile( $file );
 		} catch {
 			my $f = length($file)>1024 ? substr($file,0,1024)."... [".length($file)." bytes]" : $file;
@@ -66,6 +67,28 @@ sub load {
 		};
 	}
 	$data;
+}
+
+sub loadjobs {
+	my( $list, $path ) = @_;
+	$path = '' unless defined $path;
+	my @jobs;
+	for my $j ( @$list ) {
+		if( ref($j) eq 'HASH' ) {
+			push @jobs, $j;
+		} elsif( ref($j) eq '' ) {
+			$j = $path.$j unless $j =~ m|^/|;
+			if( -r $j ) {
+				my $file = load( $j );
+				push @jobs, @{loadjobs( $file->{jobs} )} if  $file->{jobs};
+			} else {
+				log::error('jobs file not readable '.$j);
+			}
+		} else {
+			log::error('wrong job definition '.ref($j).' ignored');
+		}
+	}
+	\@jobs;
 }
 
 sub backup {
@@ -92,6 +115,9 @@ sub save {
 	$fn;
 }
 
+sub addjobs { joq::queue::addjobs( loadjobs( shift ) ) }
+sub addjob  { joq::queue::addjob( shift ) }
+
 sub config {
 	my( $key, $val ) = @_;
 	return \%cfg unless $key;
@@ -110,9 +136,6 @@ sub config {
 }
 
 sub stopevents { delete $watch{$_} for( keys %watch ) }
-
-sub addjobs { joq::queue::addjobs( shift ); }
-sub addjob { joq::queue::addjob( shift ); }
 
 sub setpoll {
 	my $sec = shift || $cfg{polling};
@@ -211,9 +234,9 @@ EOTXT
 						);
 						foreach my $a ( @args ) {
 							my($k,$v) = $a =~ /^([^=]+)=(.+)$/;
-							if( $k =~ /^(?:name|logfile|nice|priority)$/i && defined $v ) {
+							if( $k && $k =~ /^(?:name|logfile|nice|priority)$/i && defined $v ) {
 								$jobargs{$k} = $v;
-							} elsif( $k =~ /^(?:delay|repeat|count|after|dayofweek|dow|dayofmonth|dom|dayofyear|doy|time|if)$/i && defined $v ) {
+							} elsif( $k && $k =~ /^(?:delay|repeat|count|after|dayofweek|dow|dayofmonth|dom|dayofyear|doy|time|if)$/i && defined $v ) {
 								$jobargs{when}->{$k} = $v;
 							} else {
 								$jobargs{$typ}.= ' '.$a;
@@ -403,7 +426,7 @@ EOTXT
 					my $data = load( $arg );
 					if( $data && ref($data) eq 'HASH' ) {
 						my $jobs = exists $data->{jobs} ? $data->{jobs} : $data;
-						my $adds = addjobs( $jobs );
+						my $adds = addjobs( $jobs, -f $arg ? $arg : undef  );
 						if( @$adds ) {
 							$out->dump($adds,'adds');
 							backup();
