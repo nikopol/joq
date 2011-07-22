@@ -703,7 +703,7 @@ EOINTRO
 									$line = $lastcmd;
 								}
 								$line =~ s/^(\w+)(\s|$)//;
-								my $cmd = $1;
+								my $cmd = $1 || '';
 								$line =~ s/^\s+//;
 								my @at;
 								my $arg;

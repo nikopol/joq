@@ -54,10 +54,10 @@ sub setup {
 	#   dayofweek:"all|sat,mon,1-7" 1=monday, time:"hh:mm,hh:mm,.."
 	#   dayofmonth:"all|1-31,...", time:"hh:mm,hh:mm,..."
 	#   dayofyear:"all|1-365,...", time:"hh:mm,hh:mm,..."
-	#   repeat:seconds
+	#   repeat:4s|3m|2h|1d
 	#   after:"jobname"
 	#   start:"yyyy-mm-dd hh:mm"
-	#   delay:seconds
+	#   delay:4s|3m|2h|1d
 	#   count:nbtime
 	# } default={ count:1 }
 
@@ -83,7 +83,7 @@ sub setup {
 	$job->{id} = $gid;
 	$job->{order} = ($job->{priority} * 100000) - $job->{id};
 	if( $job->{when} ) {
-		$job->{when}->{start} = e2date( time + (0+$job->{when}->{delay}) ) if $job->{when}->{delay};
+		$job->{when}->{start} = e2date( time + delay2seconds($job->{when}->{delay}) ) if $job->{when}->{delay};
 		$job->{when}->{dayofweek}  = delete $job->{when}->{dow} if $job->{when}->{dow};
 		$job->{when}->{dayofmonth} = delete $job->{when}->{dom} if $job->{when}->{dom};
 		$job->{when}->{dayofyear}  = delete $job->{when}->{doy} if $job->{when}->{doy};
@@ -373,6 +373,18 @@ sub e2date {
 	$d->ymd.' '.$d->hms;
 }
 
+sub delay2seconds {
+	my $d = shift;
+	my $s = 0;
+	if( $d ) {
+		$s += (0+$1)*60*60*24 if $d =~ s/(\d+)[dj]//i;
+		$s += (0+$1)*60*60    if $d =~ s/(\d+)h//i;
+		$s += (0+$1)*60       if $d =~ s/(\d+)m//i;
+		$s += (0+$1)          if $d =~ /(\d+)/;
+	}
+	$s
+}
+
 sub finished {
 	my( $job, $exitcode ) = @_;
 	return 0 unless $job->{pid};
@@ -434,7 +446,7 @@ sub calcnextstart {
 	return undef if defined($job->{when}->{count}) && $job->{when}->{count}<1;
 	my $last = shift || $job->{laststart};
 	if( $job->{when}->{repeat} ) {
-		my $e = $last ? $last + (0+$job->{when}->{repeat}) : time;
+		my $e = $last ? $last + delay2seconds($job->{when}->{repeat}) : time;
 		return e2date( $e );
 	} elsif( $job->{fixeday} ) {
 		my $now = time;
