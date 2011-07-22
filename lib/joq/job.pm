@@ -83,7 +83,7 @@ sub setup {
 	$job->{id} = $gid;
 	$job->{order} = ($job->{priority} * 100000) - $job->{id};
 	if( $job->{when} ) {
-		$job->{when}->{start} = e2date( time + delay2seconds($job->{when}->{delay}) ) if $job->{when}->{delay};
+		$job->{when}->{start} = e2date( time + delay2sec($job->{when}->{delay}) ) if $job->{when}->{delay};
 		$job->{when}->{dayofweek}  = delete $job->{when}->{dow} if $job->{when}->{dow};
 		$job->{when}->{dayofmonth} = delete $job->{when}->{dom} if $job->{when}->{dom};
 		$job->{when}->{dayofyear}  = delete $job->{when}->{doy} if $job->{when}->{doy};
@@ -373,14 +373,14 @@ sub e2date {
 	$d->ymd.' '.$d->hms;
 }
 
-sub delay2seconds {
+sub delay2sec {
 	my $d = shift;
 	my $s = 0;
 	if( $d ) {
-		$s += (0+$1)*60*60*24 if $d =~ s/(\d+)[dj]//i;
-		$s += (0+$1)*60*60    if $d =~ s/(\d+)h//i;
-		$s += (0+$1)*60       if $d =~ s/(\d+)m//i;
-		$s += (0+$1)          if $d =~ /(\d+)/;
+		$s += 60*60*24*$1 if $d =~ s/(\d+)[dj]//i;
+		$s += 60*60*$1    if $d =~ s/(\d+)h//i;
+		$s += 60*$1       if $d =~ s/(\d+)m//i;
+		$s += 0+$1        if $d =~ m/(\d+)/;
 	}
 	$s
 }
@@ -398,8 +398,11 @@ sub finished {
 		waitpid $job->{pid}, 0;
 		$job->{exitcode} = $? >> 8;
 	}
-	my $l = $job->{fullname}.' finished in '.duration($job).' with exit code '.$job->{exitcode}.', next start '.nextstart( $job );
+	my $l = $job->{fullname}.' finished in '.duration($job).' with exit code '.$job->{exitcode};
 	log::notice($l);
+	filog($job,$l);
+	$l = $job->{fullname}.' next start '.nextstart( $job );
+	log::info($l);
 	if( $job->{logfh} ) {
 		filog($job,'joq',$l,'----------------------------');
 		close delete $job->{logfh};
@@ -446,7 +449,7 @@ sub calcnextstart {
 	return undef if defined($job->{when}->{count}) && $job->{when}->{count}<1;
 	my $last = shift || $job->{laststart};
 	if( $job->{when}->{repeat} ) {
-		my $e = $last ? $last + delay2seconds($job->{when}->{repeat}) : time;
+		my $e = $last ? $last + delay2sec($job->{when}->{repeat}) : time;
 		return e2date( $e );
 	} elsif( $job->{fixeday} ) {
 		my $now = time;
