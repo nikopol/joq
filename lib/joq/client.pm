@@ -91,9 +91,9 @@ sub disconnect {
 }
 
 sub cmd {
-	my( $self, $cmd ) = @_;
+	my $self = shift;
+	my $cmd  = join(' ',@_)."\n";
 	return 'not connected' unless $self->{sock};
-	$cmd .= "\n";
 	print "SEND => $cmd" if $self->{debug};
 	syswrite $self->{sock}, '<'.length($cmd).'>' || return $self->error("write error");
 	syswrite $self->{sock}, $cmd || return $self->error("write error");
@@ -101,17 +101,17 @@ sub cmd {
 	$self->{decode} ? decode_json( $r ) : $r;
 }
 
-sub mode { shift->cmd('mode '.(shift|'')) }
-sub load { shift->cmd('load '.join(' ',@_)) }
+sub mode { shift->cmd('mode',@_) }
+sub load { shift->cmd('load',@_) }
 sub list { shift->cmd('list') }
-sub show { shift->cmd('show '.join(' ',@_)) }
-sub add  { shift->cmd('add '.join(' ',@_)) }
-sub del  { shift->cmd('del '.join(' ',@_)) }
-sub stop { shift->cmd('stop '.join(' ',@_)) }
-sub save { shift->cmd('save '.join(' ',@_)) }
+sub show { shift->cmd('show',@_) }
+sub add  { shift->cmd('add',@_) }
+sub del  { shift->cmd('del',@_) }
+sub stop { shift->cmd('stop',@_) }
+sub save { shift->cmd('save',@_) }
 sub killall  { shift->cmd('killall') }
 sub shutdown { shift->cmd('shutdown') }
-sub history  { shift->cmd('history '.(shift||'')) }
+sub history  { shift->cmd('history',@_) }
 sub status   { shift->cmd('status') }
 sub pause    { shift->cmd('pause') }
 sub remuse   { shift->cmd('resume') }
