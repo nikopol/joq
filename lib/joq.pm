@@ -22,7 +22,7 @@ use constant {
 	SHELLOKNP   => 2,
 };
 
-our $VERSION = '0.0.07';
+our $VERSION = '0.0.08';
 
 our %cfg = (
 	server    => 'localhost:1970',
@@ -71,6 +71,7 @@ sub load {
 
 sub loadjobs {
 	my( $list, $path ) = @_;
+	$list = [ $list ] unless ref($list) eq 'ARRAY';
 	$path = '' unless defined $path;
 	my @jobs;
 	for my $j ( @$list ) {
