@@ -1,0 +1,7 @@
+jobs:
+  - "extend1.job"
+  -
+    extend: "extend2.job"
+    when:
+      repeat: 10
+      count: 3

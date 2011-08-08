@@ -1,0 +1,7 @@
+jobs:
+  -
+    name: "fart"
+    shell: "echo prout"
+    priority: 6
+    when:
+      alone: 1

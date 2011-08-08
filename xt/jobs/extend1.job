@@ -1,0 +1,4 @@
+jobs:
+  -
+    name: "sleeper"
+    shell: "echo start && sleep 30 && echo stop"

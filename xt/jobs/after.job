@@ -1,0 +1,28 @@
+{
+	"polling": 5,
+	"oneshot": 1,
+	"log": {
+		"level": "debug",
+		"screen": "color",
+		"file": "/tmp/joq-test.log"
+	},
+	"jobs": [
+		{
+			"name":"petoman",
+			"shell":"echo 'prout'",
+		},
+		{
+			"name":"countdown",
+			"code":"for(qw/five four three two one/){ print \"$_\n\"; sleep 2; }"
+		},
+		{
+			"shell":"echo 'that s stinks'",
+			"when": {"after":"petoman","count":1}
+		},
+		{
+			"name":"final",
+			"shell":"echo 'lift off!'",
+			"when":{"after":"countdown and petoman","count":1}
+		}
+	]
+}
