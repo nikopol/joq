@@ -483,11 +483,13 @@ sub calcnextstart {
 
 sub nextstart {
 	my $job = shift;
-	return 'never (count over)' if exists($job->{when}->{count}) && $job->{when}->{count} < 1;
-	return 'at '.$job->{when}->{start} if $job->{when}->{start};
-	return 'after '. $job->{when}->{after} if  $job->{when}->{after};
+	my $w = $job->{when};
+	return 'never (count over)' if exists($w->{count}) && $w->{count} < 1;
+	return 'at '.$w->{start}.', '.$w->{count}.' run remains' if $w->{start} && $w->{count};
+	return 'at '.$w->{start} if $w->{start};
+	return 'after '.$w->{after} if $w->{after};
 	return 'never' if dead( $job );
-	return 'asap, '.$job->{when}->{count}.' run remains' if $job->{when}->{count};
+	return 'asap, '.$w->{count}.' run remains' if $w->{count};
 	return 'asap';
 }
 
@@ -500,12 +502,11 @@ sub startable {
 	}
 	if( $job->{when}->{if} ) {
 		unless( eval($job->{when}->{if}) ) {
-			log::debug $job->{fullname}.' dont pass its if condition';
+			log::debug $job->{fullname}.' dont pass its "if" condition';
 			return 0;
 		}
-		log::debug  $job->{fullname}.' validate its if condition';
+		log::debug  $job->{fullname}.' validate its "if" condition';
 	}
-#	return 0 if $job->{when}->{if} && ! eval($job->{when}->{if});
 	if( $job->{when}->{after} ) {
 		my $ok = 0;
 		foreach my $or ( split /[|]| or /i, $job->{when}->{after} ) {
