@@ -102,6 +102,7 @@ sub loadjobs {
 					my @exjobs = grep { !$name || $name eq $_->{name} } @{$data->{jobs}};
 					my $ex = shift @exjobs;
 					if( $ex ) {
+						log::debug('extend '.($j->{name}||$ex->{name}||'').' with '.$file.':'.($name||'first'));
 						$j = hmerge( $ex, $j );
 					} else {
 						log::error("extend from $file, job ".($name||"first")." not found");
