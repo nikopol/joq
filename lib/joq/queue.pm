@@ -14,6 +14,7 @@ my @history;
 my $polling;
 my $runcount = 0;
 my $paused = 0;
+my $alone = 0;
 
 our %cfg = (
 	maxfork     => 4,  #max simultaneous running
@@ -178,8 +179,8 @@ sub status {
 sub poll {
 	return undef if $polling;
 	$polling = 1;
-	my @jobids = keys %jobs;
 	my $nbevent = 0;
+	my @jobids = keys %jobs;
 	if( @jobids ) {
 		log::debug('polling with '.(keys %jobs).' jobs queued');
 		#check 'running' jobs
@@ -196,16 +197,16 @@ sub poll {
 				if( joq::job::dead($job) ) {
 					log::info($job->{fullname}.' marked as finished and dead');
 					historize( delete $jobs{$jid} );
-					@jobids = keys %jobs;
 				} else {
 					log::info($job->{fullname}.' marked as finished and pending');
 				}
+				$alone = 0;
 				$nbevent++;
 			}
 		}
 		@runs = @alive;
-		#check 'runnable' jobs
-		my $readyed = @readys;
+		#check 'runnable' jobs, ordered by priority
+		@jobids = sort { $jobs{$b}->{order} <=> $jobs{$a}->{order} } keys %jobs;
 		foreach my $jid ( @jobids ) {
 			unless( (grep { $_ == $jid } @readys) || (grep { $_ == $jid } @runs) ) {
 				my $job = $jobs{$jid};
@@ -215,21 +216,32 @@ sub poll {
 				}
 			}
 		}
-		if( $readyed != @readys ) {
-			#manage priority
-			@readys = sort { $jobs{$b}->{order} <=> $jobs{$a}->{order} } @readys;
-		}
 		#runs jobs if fork slot available
-		unless( $paused ) {
-			while( @runs < $cfg{maxfork} && ( my $jid = shift @readys ) ) {
-				my $job = $jobs{$jid};
-				if(joq::job::start( $job )) {
-					push @runs, $jid;
-					$nbevent++;
+		unless( $paused || $alone ) {
+			my @stillreadys;
+			while( my $jid = shift @readys ) {
+				if( @runs < $cfg{maxfork} ) {
+					my $job = $jobs{$jid};
+					my $wal = $job->{when}->{alone};
+					if( $wal && scalar @runs ) {
+						push @stillreadys, $jid;
+					} elsif(joq::job::start( $job )) {
+						push @runs, $jid;
+						$nbevent++;
+						if( $wal ) {
+							log::info($job->{fullname}.' activates alone mode');
+							$alone = 1;
+							push @stillreadys, @readys;
+							last;
+						}
+					} else {
+						log::error('error starting '.$job->{fullname}.', unqueued');
+					}
 				} else {
-					log::error('error starting '.$job->{fullname}.', unqueued');
+					push @stillreadys, $jid;
 				}
 			}
+			@readys = @stillreadys;
 		}
 		log::debug('polling finish with '.scalar @runs.'/'.$cfg{maxfork}.' jobs running, '.scalar @readys.' ready'.($paused?' (paused)':''));
 	}

@@ -22,7 +22,7 @@ use constant {
 	SHELLOKNP   => 2,
 };
 
-our $VERSION = '0.0.08';
+our $VERSION = '0.0.09';
 
 our %cfg = (
 	server    => 'localhost:1970',
@@ -37,8 +37,15 @@ my $w;
 
 sub init {
 	my %arg = @_;
-	%arg = ( %{load($arg{file})}, %arg ) if $arg{file};
+	my $file = delete $arg{load};
+	my $path;
+	if( $file ) {
+		$path = $1 if $file =~ m|^(.*/)[^/]+$|;
+		%arg = ( %{load($file)}, %arg );
+	}
 	#setup log
+	$arg{log}->{level} = delete $arg{'log_level'} if exists $arg{'log_level'};
+	$arg{log}->{file}  = delete $arg{'log_file'} if exists $arg{'log_file'};
 	log::setup( %{$arg{log}} ) if $arg{log};
 	log::notice('JoQ version='.$VERSION.' pid='.$$.' uid='.$<);
 	#setup core/queue/job
@@ -51,12 +58,13 @@ sub init {
 		joq::remote::add( $_ ) foreach( @l );
 	}
 	#enqueue jobs
-	addjobs( $arg{jobs}, $arg{file} ) if $arg{jobs};
+	addjobs( $arg{jobs}, $path ) if $arg{jobs};
 }
 
 sub load {
-	my $file = shift;
+	my( $file, $path ) = @_;
 	my $data = {};
+	$file = $path.$file if $path && $file !~ m|^/| && -f $path.$file;
 	if( $file ) {
 		try {
 			log::debug("loading $file");
@@ -69,6 +77,16 @@ sub load {
 	$data;
 }
 
+sub hmerge {
+	my( $a, $b ) = @_;
+	for my $k ( keys %$b ) {
+		$a->{$k} = ( !exists $a->{$k} || ref($a->{$k}) ne 'HASH' ) 
+			? $b->{$k}
+			: hmerge( $a->{$k}, $b->{$k} );
+	}
+	$a;
+}
+
 sub loadjobs {
 	my( $list, $path ) = @_;
 	$list = [ $list ] unless ref($list) eq 'ARRAY';
@@ -76,15 +94,25 @@ sub loadjobs {
 	my @jobs;
 	for my $j ( @$list ) {
 		if( ref($j) eq 'HASH' ) {
+			if( exists $j->{extend} ) {
+				my( $file, $name ) = split /:/, delete $j->{extend};
+				my $data = load( $file, $path );
+				if( $data && $data->{jobs} ) {
+					my @exjobs = grep { !$name || $name eq $_->{name} } @{$data->{jobs}};
+					my $ex = shift @exjobs;
+					if( $ex ) {
+						$j = hmerge( $ex, $j );
+					} else {
+						log::error("extend from $file, job ".($name||"first")." not found");
+						next;
+					}
+				}
+			}
 			push @jobs, $j;
 		} elsif( ref($j) eq '' ) {
-			$j = $path.$j unless $j =~ m|^/|;
-			if( -r $j ) {
-				my $file = load( $j );
-				push @jobs, @{loadjobs( $file->{jobs} )} if  $file->{jobs};
-			} else {
-				log::error('jobs file not readable '.$j);
-			}
+			my $data = load( $j, $path );
+			push @jobs, @{loadjobs( $data->{jobs}, $path )}
+				if $data && ref($data) eq 'HASH' && exists $data->{jobs};
 		} else {
 			log::error('wrong job definition '.ref($j).' ignored');
 		}
@@ -116,8 +144,8 @@ sub save {
 	$fn;
 }
 
-sub addjobs { joq::queue::addjobs( loadjobs( shift ) ) }
-sub addjob  { joq::queue::addjob( shift ) }
+sub addjobs { joq::queue::addjobs( loadjobs( @_ ) ) }
+sub addjob  { joq::queue::addjob( @_ ) }
 
 sub config {
 	my( $key, $val ) = @_;
@@ -781,7 +809,7 @@ EOINTRO
 
 	log::debug('event loop, impl='.AnyEvent::detect);
 	backup;
-	log::debug('started');
+	log::notice('JoQ started');
 	joq::poll;
 	my $r = $w->recv;
 	joq::queue::killall;
