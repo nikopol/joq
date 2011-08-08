@@ -1,7 +1,8 @@
+oneshot: 1
 jobs:
-  - "extend1.job"
-  -
-    extend: "extend2.job"
-    when:
-      repeat: 10
-      count: 3
+- extend1.job
+-
+  extend: extend2.job:fart
+  when:
+    repeat: 10
+    count: 3

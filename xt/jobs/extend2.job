@@ -1,7 +1,8 @@
 jobs:
-  -
-    name: "fart"
-    shell: "echo prout"
-    priority: 6
-    when:
-      alone: 1
+- name: death
+  shell: echo ERROR you sould not see this
+- name: fart
+  shell: echo prout
+  priority: 6
+  when:
+    alone: 1
