@@ -153,7 +153,11 @@ sub notice  { LOG( shift, shift || (caller())[0], LOGNOTICE, shift); }
 sub LOG {
     my( $msg, $from, $level, $pid ) = @_;
 	my @outkeys = keys %out;
-	return 1 unless @outkeys;
+	unless( @outkeys ) {
+		#show error even if no log output defined
+		CORE::warn "$msg\n" if $level == LOGERROR;
+		return 1;
+	}
  	$from =~ s/^.*\://g;
 	$from = uc $from;
 	$from .= "#$pid" if $pid;
