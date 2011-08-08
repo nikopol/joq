@@ -44,9 +44,10 @@ sub init {
 		%arg = ( %{load($file)}, %arg );
 	}
 	#setup log
+	$arg{log} = {} unless exists $arg{log};
 	$arg{log}->{level} = delete $arg{'log_level'} if exists $arg{'log_level'};
 	$arg{log}->{file}  = delete $arg{'log_file'} if exists $arg{'log_file'};
-	log::setup( %{$arg{log}} ) if $arg{log};
+	log::setup( %{$arg{log}} );
 	log::notice('JoQ version='.$VERSION.' pid='.$$.' uid='.$<);
 	#setup core/queue/job
 	for(keys %joq::cfg)        { joq::config( $_, $arg{$_} ) if exists $arg{$_} }
@@ -185,7 +186,7 @@ sub poll {
 sub run {
 	return -1 if $running;
 	$running = 1;
-	init( @_ ) if @_;
+	init( @_ );
 
 	my $start = time;
 	$w = AnyEvent->condvar;

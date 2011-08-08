@@ -37,6 +37,7 @@ jobs:
   shell: echo
   args: prout
   when:
+    alone: 1
     delay: 5s
 - shell: echo thats stinks
   when:
