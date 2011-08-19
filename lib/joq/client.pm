@@ -98,7 +98,8 @@ sub cmd {
 	print "SEND => $cmd" if $self->{debug};
 	syswrite $self->{sock}, '<'.length($cmd).'>' || return $self->error("write error");
 	syswrite $self->{sock}, $cmd || return $self->error("write error");
-	my $r = join("\n", @{$self->read});
+	my $read = $self->{read};
+	my $r = $self->{read} ? join("\n", @$read) : $self->error;
 	$self->{decode} ? decode_json( $r ) : $r;
 }
 

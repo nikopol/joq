@@ -53,7 +53,6 @@ sub setup {
 	my %arg = @_;
 	$TZ = $arg{timezone} if $arg{timezone};
 	level( $arg{level} ) if $arg{level};
-	$arg{screen} = 'color' unless defined $arg{screen} || $arg{file};
 	addout( '*STDOUT', $arg{screen} ) if $arg{screen};
 	addout( $arg{file}, LONG ) if $arg{file};
 	1;

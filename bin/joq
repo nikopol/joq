@@ -11,6 +11,7 @@ GetOptions(
 	'help|h|?'         => \my $help,
 	'deamon|d'         => \my $daemonize,
 	'jobs|j|file|f=s'  => \my $confile,
+	'log|l=s'          => \my $log,
 	'loglevel|ll=s'    => \my $loglevel,
 	'logfile|lf=s'     => \my $logfile,
 	's|server=s'       => \my $server,
@@ -67,6 +68,7 @@ avalaible options:
  -d -daemon            : spawn as deamon from the fifth circle
  -u -user user         : set joq uid (only if started as root)
  -f -file filename     : config file to load
+ -l -log mode          : output to stdout color(default),long,short,none
  -ll -loglevel level   : error,warning,notice,info(default),debug
  -lf -logfile filename : output log to filename
  -s -server host:port  : set telnet/client server
@@ -143,11 +145,13 @@ $o{polling} = $polling if $polling;
 $o{backup}  = $backup if $backup;
 $o{oneshot} = 1 if $oneshot;
 $o{maxfork} = $maxfork if $maxfork;
-$o{log_level} = $loglevel if $loglevel;
-$o{log_file}  = $logfile if $logfile;
+$o{log_level}  = $loglevel if $loglevel;
+$o{log_file}   = $logfile if $logfile;
+$log = 'color' unless defined $log;
+$o{log_screen} = $log unless $log =~ /none/i;
 
 if( $user ) {
-	die("you must be root to change uid to $user\n") unless $< == 0;
+	die("you must be root to change uid to $user\n") if $<;
 	die("unknow user $user\n") unless my $uid = getpwnam($user);
 	$< = $uid;
 	die("error switching to $user ($uid) : $!\n") if $!;
@@ -162,6 +166,7 @@ if( $daemonize ) {
 	exit if $pid;
 	die "can't start a new session: $!" if setsid == -1;
 	open STDERR, '>&STDOUT' or die "can't dup stdout: $!";
+	delete $o{log_screen};
 }
 
 joq::run( %o );

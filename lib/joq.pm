@@ -22,7 +22,7 @@ use constant {
 	SHELLOKNP   => 2,
 };
 
-our $VERSION = '0.0.09';
+our $VERSION = '0.0.10';
 
 our %cfg = (
 	server    => 'localhost:1970',
@@ -45,8 +45,9 @@ sub init {
 	}
 	#setup log
 	$arg{log} = {} unless exists $arg{log};
-	$arg{log}->{level} = delete $arg{'log_level'} if exists $arg{'log_level'};
-	$arg{log}->{file}  = delete $arg{'log_file'} if exists $arg{'log_file'};
+	for(qw(level file screen)) {
+		$arg{log}->{$_} = delete $arg{"log_$_"} if exists $arg{"log_$_"};
+	}
 	log::setup( %{$arg{log}} );
 	log::notice('JoQ version='.$VERSION.' pid='.$$.' uid='.$<);
 	#setup core/queue/job
