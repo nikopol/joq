@@ -92,7 +92,8 @@ sub disconnect {
 
 sub cmd {
 	my $self = shift;
-	my $cmd  = join(' ',@_)."\n";
+	my $cmd  = shift;
+	$cmd .= ' '.(ref($_[0]) eq 'HASH' ? encode_json($_[0]) : join(' ',@_)) if @_;
 	return 'not connected' unless $self->{sock};
 	print "SEND => $cmd" if $self->{debug};
 	syswrite $self->{sock}, '<'.length($cmd).'>' || return $self->error("write error");
@@ -140,28 +141,30 @@ joq - Client
 
   #send a job - first way
   joq::client->new->add('code while(1){ print "bazinga\n"; sleep 10; } name=bazinga delay=30');
+  joq::client->new->add('shell echo prout name=petoman repeat=3');
 
   #send jobs - second way
-  joq::client->new->load(
-    JSON::XS->new->encode({
-		jobs => [
-			{ shell => 'echo "bazinga"', name => 'bazinga', when => { delay => 30 }},
-			{ class => 'My::Class' },
-		]
-	})
-  );
+  joq::client->new->load({
+    jobs => [
+      { shell => 'echo "bazinga"', name => 'bazinga', when => { delay => 30 }},
+      { class => 'My::Class' },
+    ]
+  });
 
   #list queued jobs
   print joq::client->new->list;
 
-  #show detail on a job
+  #show detail on a job or id
   print joq::client->new->show('bazinga');
+  print joq::client->new->show(1);
 
-  #del a job by its name
+  #del a job by its name or id
   joq::client->new->del('bazinga');
+  joq::client->new->del(2);
 
-  #stop a running job
+  #stop a running job or id
   joq::client->new->stop('bazinga');
+  joq::client->new->stop(3);
 
   #killall running jobs
   joq::client->new->killall;
