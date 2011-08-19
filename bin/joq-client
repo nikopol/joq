@@ -8,6 +8,7 @@ use Getopt::Long;
 use joq;
 use joq::file;
 use joq::client;
+use JSON::XS;
 
 GetOptions(
 	'help|?'      => \my $help,
@@ -106,5 +107,6 @@ die("i've searched hard, deep and carefully, but i didn't find this command\n")
 
 $client = joq::client->new(%$o);
 die("unable to connect\n".$client->error."\n") unless $client && $client->connected;
-print $commands{$cmd}(@ARGV),"\n";
+my $r = $commands{$cmd}(@ARGV);
+print( ref($r) eq 'HASH' ? JSON::XS->new->utf8->pretty->encode($r) : $r, "\n" );
 0;
