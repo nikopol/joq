@@ -69,8 +69,7 @@ my %commands = (
 	load => sub {
 		my $file = shift;
 		return "file not found" unless $file && -r $file;
-		my @lines = map { chomp; s/^\s+//; s/\s+$//; $_ } readfile($file);
-		$client->load(join('',@lines));
+		$client->load(parsefile($file));
 	},
 	show => sub {
 		my $job = shift;
