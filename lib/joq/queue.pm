@@ -120,10 +120,8 @@ sub stopjob {
 sub deljob {
 	return 0 unless my $job = job( shift );
 	stopjob( $job );
-	@readys = grep { $_ != $job->{id} } @readys;
-	@runs = grep { $_ != $job->{id} } @runs;
-	historize( delete $jobs{$job->{id}} );
-	1;
+	$job->{deleted} = 1;
+	poll()
 }
 
 sub killall {
@@ -136,32 +134,32 @@ sub killall {
 	historize( delete $jobs{$_} ) foreach( @jobids );
 	@readys = ();
 	@runs = ();
-	scalar @jobids;
+	scalar @jobids
 }
 
 sub historize {
 	my $job = shift;
 	push @history, $job;
 	log::debug($job->{fullname}.' historized ('.histurn().')');
-	scalar @history;
+	scalar @history
 }
 
 sub histurn {
 	shift( @history ) while( $cfg{maxhistory} < @history );
-	scalar @history;
+	scalar @history
 }
 
 sub pause {
 	return 0 if $paused;
 	log::notice "queue paused";
-	$paused = 1;
+	$paused = 1
 }
 
 sub resume {
 	return 0 unless $paused;
 	log::notice "queue resumed";
 	$paused = 0;
-	1;
+	1
 }
 
 sub status {
@@ -173,6 +171,7 @@ sub status {
 		jobs_running=> scalar @runs,
 		jobs_run    => $runcount,
 		jobs_ready  => scalar @readys,
+		flag_alone  => $alone,
 	};
 }
 

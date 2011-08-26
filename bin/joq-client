@@ -11,18 +11,18 @@ use joq::client;
 use JSON::XS;
 
 GetOptions(
-	'help|?'      => \my $help,
-	'debug|dbg|d' => \my $debug,
-	'host|h=s'    => \my $host,
-	'port|p=s'    => \my $port,
-	'mode|m=s'    => \my $mode,
+	'help|?'                => \my $help,
+	'debug|dbg|d'           => \my $debug,
+	'server|s|host|h=s'     => \my $server,
+	'mode|m|format|fmt|f=s' => \my $mode,
 );
 
+
+
 my $o = {
-	debug => $debug || 0,
-	host  => $host  || 'localhost',
-	port  => $port  || 1970,
-	mode  => $mode  || 'text',
+	debug  => $debug   || 0,
+	server => $server  || 'localhost:1970',
+	mode   => $mode    || 'text',
 };
 
 sub help {
@@ -33,11 +33,10 @@ syntax:
 $0 [-options] command [args]
 
 options:
- -? --help            display pron picture
- -d --debug           verbose debug output
- -h --host hostname   set joq server hostname (default=localhost)
- -p --port port       set joq server port (default=1970)
- -m --mode fmt        set output format (yaml,json or text)
+ -? -help             display pron picture
+ -d -debug            verbose debug output
+ -s -server host:port set joq server hostname (default=localhost)
+ -m -mode fmt         set output format (yaml,json or text)
 
 commands & args:
 status                             : get joq status

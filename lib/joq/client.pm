@@ -21,6 +21,14 @@ sub new {
 		error  => "",
 		log    => [],
 	};
+	if( $o{server} ) {
+		if( $o{server} =~ /^([^\:]+)\:(\d+)$/ ) {
+			$self->{host} = $1;
+			$self->{port} = $2;
+		} else {
+			$self->{host} = $o{server};
+		}
+	}
 	$self->{decode} = $self->{mode} eq 'perl';
 	$self->{imode}  = $self->{decode} ? 'json' : $self->{mode};
 	bless $self, $class;

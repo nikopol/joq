@@ -230,25 +230,26 @@ sub run {
 			addjob => {
 				txt => <<EOTXT
 add a job in queue
-    options:   name=jobname   : set job's nickname
-              delay=seconds   : time to wait from job creation before start
-             repeat=seconds   : time between runs (next_run=last_start+repeat)
-              count=count     : how many times you wanna run this job 
-			                    (default=1 or infinite if "repeat" used)
-                 if=codeval   : not startable unless this codeval
-               nice=-20..19   : nice job's fork (-20=fast,19=slow)
-           priority=1..10     : start priority (1=slow,10=speed,default=5)	 
-              after=job(s)    : wait then end of this/theses job(s) to start.
-                                you can use boolean & and | between jobnames.
-                                eg: jobname eg: job1&job2 eg: job1|job2
-          dayofweek=day(s)    : run job at theses days, comma separeted. 
-                                avail values: all,sunday,dimanche,monday,lundi,etc...
-         dayofmonth=day(s)    : run job at theses days, comma separated (all, 1-31)
-          dayofyear=day(s)    : run job at theses days, comma separated (all, 1-365)
-               time=time(s)   : run job at theses hours. eg: 1h00,15h00
-           logfile=filename   : log filename of job output
+    options:   name=jobname  : set job's nickname
+              delay=seconds  : time to wait from job creation before start
+             repeat=seconds  : time between runs (next_run=last_start+repeat)
+              count=count    : how many times you wanna run this job 
+			                   (default=1 or infinite if "repeat" used)
+                 if=codeval  : not startable unless this codeval
+			  alone=1        : setup alone flag
+               nice=-20..19  : nice job's fork (-20=fast,19=slow)
+           priority=1..10    : start priority (1=low,10=high,default=5)	 
+              after=job(s)   : wait then end of this/theses job(s) to start.
+                               you can use boolean & and | between jobnames.
+                               eg: jobname eg: job1&job2 eg: job1|job2
+          dayofweek=day(s)   : run job at theses days, comma separeted. 
+                               avail values: all,sunday,dimanche,monday,lundi,etc...
+         dayofmonth=day(s)   : run job at theses days, comma separated (all, 1-31)
+          dayofyear=day(s)   : run job at theses days, comma separated (all, 1-365)
+               time=time(s)  : run job at theses hours. eg: 1h00,15h00
+            logfile=filename : log filename of job output
 
-   eg: addjob ls -l repeat=20
+   eg: addjob ping rtgi.eu repeat=1m count=10
 EOTXT
 				,
 				arg => "[shell|code|class] cmd [args] [opts]",
@@ -271,7 +272,8 @@ EOTXT
 							my($k,$v) = $a =~ /^([^=]+)=(.+)$/;
 							if( $k && $k =~ /^(?:name|logfile|nice|priority)$/i && defined $v ) {
 								$jobargs{$k} = $v;
-							} elsif( $k && $k =~ /^(?:delay|repeat|count|after|dayofweek|dow|dayofmonth|dom|dayofyear|doy|time|if)$/i && defined $v ) {
+							} elsif( $k && $k =~ /^(?:delay|repeat|count|after|dayofweek|dow|dayofmonth|dom|dayofyear|doy|time|if|alone)$/i && defined $v ) {
+								log::debug("set when $k = $v");
 								$jobargs{when}->{$k} = $v;
 							} else {
 								$jobargs{$typ}.= ' '.$a;
@@ -757,7 +759,7 @@ EOINTRO
 								$line =~ s/^\s+//;
 								$line =~ s/\s+$//;
 								if( $line ) {
-									$lastcmd = $line;
+									$lastcmd = $line if $line =~ /^(stat|list|history)/i;
 								} else {
 									$line = $lastcmd;
 								}

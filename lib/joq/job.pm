@@ -35,7 +35,7 @@ sub config {
 	} else {
 		$val = $cfg{$key};
 	}
-	$val;
+	$val
 }
 
 sub setup {
@@ -198,7 +198,7 @@ sub setup {
 	$job->{when}->{start} = calcnextstart( $job ) unless $job->{when}->{start};
 	$job->{fullname} = 'job#'.$job->{id}.($job->{name}?' ['.$job->{name}.']':'');
 	log::notice($job->{fullname}.' of type '.($job->{code}?'code':$job->{class}?'class':'shell').' gonna start '.nextstart($job));
-	$job;
+	$job
 }
 
 sub start {
@@ -302,6 +302,7 @@ sub start {
 
 		no warnings;
 		no strict;
+		use 5.010;
 		
 		try {
 			$e = 0+eval($job->{code});
@@ -341,7 +342,7 @@ sub start {
 			}
 		}
 		$e = system @args;
-	
+		#exec join(' ',@args);
 	}
 	exit $e;
 }
@@ -354,7 +355,7 @@ sub filog {
 	foreach( @_ ) {
 		print $h ($tim,'|',$typ,'|',$_,"\n");
 	}
-	1;
+	1
 }
 
 sub duration {
@@ -363,14 +364,14 @@ sub duration {
 	my $s = $job->{lastend} - $job->{laststart};
 	my $m = int($s / 60);
 	my $h = int($m / 60);
-	sprintf("%dh%02dm%02ds", $h, $m%60, $s%60);
+	sprintf("%dh%02dm%02ds", $h, $m%60, $s%60)
 }
 
 sub e2date {
 	my $e = shift;
 	return 'n/a' unless $e;
 	my $d = DateTime->from_epoch( epoch=>$e, time_zone=>$cfg{timezone} );
-	$d->ymd.' '.$d->hms;
+	$d->ymd.' '.$d->hms
 }
 
 sub delay2sec {
@@ -396,7 +397,7 @@ sub finished {
 		$job->{exitcode} = $exitcode;
 	} else {
 		waitpid $job->{pid}, 0;
-		$job->{exitcode} = $? >> 8;
+		$job->{exitcode} = $?;
 	}
 	my $l = $job->{fullname}.' finished in '.duration($job).' with exit code '.$job->{exitcode};
 	log::notice($l);
@@ -410,7 +411,7 @@ sub finished {
 	$job->{pid} = 0;
 	$job->{fullname} =~ s/ pid=\d*//;
 	kill 12, $$; #SIGUSR2 => joq::Queue::poll
-	1;
+	1
 }
 
 sub running {
@@ -427,21 +428,29 @@ sub running {
 		log::debug($job->{fullname}.' pid don\'t exists');
 		finished( $job, $c );
 	}
-	$job->{pid};
+	$job->{pid}
 }
 
 sub stop {
 	my $job = shift;
 	return undef unless my $jid = running( $job );
+	unless( kill( 15, $jid ) ) {
+		log::debug($job->{fullname}.' did not receive int signal');
+		return 0;
+	}
 	log::debug($job->{fullname}.' send int signal');
-	kill 2, $jid;
+	1
 }
 
 sub kill {
 	my $job = shift;
 	return undef unless my $jid = running( $job );
+	unless( kill( 9, $jid ) ) {
+		log::debug($job->{fullname}.' did not receive kill signal');
+		return 0;
+	}
 	log::debug($job->{fullname}.' send kill signal');
-	kill 9, $jid;
+	1
 }
 
 sub calcnextstart {
@@ -478,19 +487,20 @@ sub calcnextstart {
 		$e += $times[$n];
 		return e2date( $e );
 	}
-	undef;
+	undef
 }
 
 sub nextstart {
 	my $job = shift;
 	my $w = $job->{when};
+	my $a = $w->{alone} ? 'alone ' : '';
 	return 'never (count over)' if exists($w->{count}) && $w->{count} < 1;
-	return 'at '.$w->{start}.', '.$w->{count}.' run remains' if $w->{start} && $w->{count};
-	return 'at '.$w->{start} if $w->{start};
-	return 'after '.$w->{after} if $w->{after};
+	return $a.'at '.$w->{start}.', '.$w->{count}.' run remains' if $w->{start} && $w->{count};
+	return $a.'at '.$w->{start} if $w->{start};
+	return $a.'after '.$w->{after} if $w->{after};
 	return 'never' if dead( $job );
-	return 'asap, '.$w->{count}.' run remains' if $w->{count};
-	return 'asap';
+	return $a.'asap, '.$w->{count}.' run remains' if $w->{count};
+	$a.'asap'
 }
 
 sub startable {
@@ -521,12 +531,12 @@ sub startable {
 		}
 		return $ok;
 	}
-	1;
+	1
 }
 
 sub dead {
 	my $job = shift;
-	defined $job->{when}->{count} && $job->{when}->{count}<1;
+	$job->{deleted} || defined $job->{when}->{count} && $job->{when}->{count}<1;
 }
 
 1;
