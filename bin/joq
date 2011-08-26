@@ -6,6 +6,7 @@ use strict;
 use Getopt::Long;
 use YAML::XS;
 use joq;
+use joq::client;
 
 GetOptions(
 	'help|h|?'         => \my $help,
@@ -140,7 +141,7 @@ die "sorry master but I don't understand\n".
 	"$confile doesn't exists or is not readable\n"
 	unless !$confile || -r $confile;
 $o{load}    = $confile if $confile;
-$o{server}  = $server if $server;
+$o{server}  = $server || 'localhost:1970';
 $o{polling} = $polling if $polling;
 $o{backup}  = $backup if $backup;
 $o{oneshot} = 1 if $oneshot;
@@ -155,6 +156,11 @@ if( $user ) {
 	die("unknow user $user\n") unless my $uid = getpwnam($user);
 	$< = $uid;
 	die("error switching to $user ($uid) : $!\n") if $!;
+}
+
+if( $o{server} =~ m/^([^\:]+)\:(\d+)$/ ) {
+	die "$o{server} already used!\n"
+		if joq::client->new(host=>$1,port=>$2)->connected;
 }
 
 if( $daemonize ) {
