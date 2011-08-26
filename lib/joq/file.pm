@@ -24,7 +24,7 @@ sub readfile {
 sub parsefile {
 	my $fn  = shift || die('what file?');
 	my $buf = shift || ( -f $fn ) ? readfile( $fn ) : $fn;
-	( $buf =~ /^\s*\{/ ) ? decode_json( $buf ) : Load( $buf );
+	( $buf =~ /^\s*[\{\[]/ ) ? decode_json( $buf ) : Load( $buf );
 }
 
 sub writefile {
