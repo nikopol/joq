@@ -22,7 +22,7 @@ use constant {
 	SHELLOKNP   => 2,
 };
 
-our $VERSION = '0.0.11';
+our $VERSION = '0.0.12';
 
 our %cfg = (
 	server    => 'localhost:1970',
@@ -68,12 +68,12 @@ sub load {
 	my $data = {};
 	$file = $path.$file if $path && $file !~ m|^/| && -f $path.$file;
 	if( $file ) {
+		my $f = length($file)>768 ? substr($file,0,768)."... [".length($file)." bytes]" : $file;
 		try {
-			log::debug("loading $file");
+			log::debug("read/parse $f");
 			$data = parsefile( $file );
 		} catch {
-			my $f = length($file)>1024 ? substr($file,0,1024)."... [".length($file)." bytes]" : $file;
-			log::error("reading/parsing $f : $_");
+			log::error("read/parse $f : $_");
 		};
 	}
 	$data;
@@ -92,14 +92,14 @@ sub hmerge {
 sub loadjobs {
 	my( $list, $path ) = @_;
 	$list = [ $list ] unless ref($list) eq 'ARRAY';
-	$path = '' unless defined $path;
+	$path = $path unless defined $path;
 	my @jobs;
 	for my $j ( @$list ) {
 		if( ref($j) eq 'HASH' ) {
 			if( exists $j->{extend} ) {
 				my( $file, $name ) = split /:/, delete $j->{extend};
 				my $data = load( $file, $path );
-				if( $data && $data->{jobs} ) {
+				if( ref($data) eq 'HASH' && $data->{jobs} ) {
 					my @exjobs = grep { !$name || $name eq $_->{name} } @{$data->{jobs}};
 					my $ex = shift @exjobs;
 					if( $ex ) {
@@ -109,6 +109,9 @@ sub loadjobs {
 						log::error("extend from $file, job ".($name||"first")." not found");
 						next;
 					}
+				} else {
+					log::error("extend from bad $file, ignored");
+					next;
 				}
 			}
 			push @jobs, $j;
@@ -455,10 +458,11 @@ EOTXT
 				arg => 'filename or string',
 				bin => sub {
 					my($out,$arg) = @_;
+					my $path = $1 if -f $arg && $arg =~ m|^(.*/)[^/]+$|;
 					my $data = load( $arg );
 					if( $data && ref($data) eq 'HASH' ) {
 						my $jobs = exists $data->{jobs} ? $data->{jobs} : $data;
-						my $adds = addjobs( $jobs, -f $arg ? $arg : undef  );
+						my $adds = addjobs( $jobs, $path  );
 						if( @$adds ) {
 							$out->dump($adds,'adds');
 							backup();
