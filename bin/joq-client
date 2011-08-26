@@ -41,8 +41,9 @@ options:
 
 commands & args:
 status                             : get joq status
-load filename                      : load a local json with jobs, 
+load filename                      : load a local file with jobs, 
                                      and send it to the server
+rload filename                     : load a remote file with jobs
 list                               : list queued jobs 
 show jobname|jobid                 : show detail on a given job
 add  [shell|code|class] cmd [args] : queue a job
@@ -70,6 +71,10 @@ my %commands = (
 		my $file = shift;
 		return "file not found" unless $file && -r $file;
 		$client->load(parsefile($file));
+	},
+	rload => sub {
+		my $file = shift;
+		$client->load($file);
 	},
 	show => sub {
 		my $job = shift;
@@ -105,7 +110,11 @@ die("i've searched hard, deep and carefully, but i didn't find this command\n")
 	unless exists $commands{$cmd};
 
 $client = joq::client->new(%$o);
-die("unable to connect\n".$client->error."\n") unless $client && $client->connected;
+die("unable to connect\n".$client->error."\n") unless $client->connected;
 my $r = $commands{$cmd}(@ARGV);
-print( ref($r) eq 'HASH' ? JSON::XS->new->utf8->pretty->encode($r) : $r, "\n" );
+unless( ref($r) ) {
+	print $r,"\n";
+} else {
+	print( $mode =~ /ya?ml/ ? Dump $r : JSON::XS->new->utf8->pretty->encode($r) , "\n" );
+}
 0;
