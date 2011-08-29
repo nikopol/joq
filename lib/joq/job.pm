@@ -538,7 +538,7 @@ sub startable {
 
 sub dead {
 	my $job = shift;
-	$job->{deleted} || defined $job->{when}->{count} && $job->{when}->{count}<1;
+	defined $job->{when}->{count} && $job->{when}->{count}<1;
 }
 
 1;

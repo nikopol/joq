@@ -114,14 +114,17 @@ sub stopjob {
 	} else {
 		log::notice($job->{fullname}.' softly stopped');
 	}
+	$alone = 0 if $job->{when}->{alone} && !joq::job::running( $job );
 	1;
 }
 
 sub deljob {
 	return 0 unless my $job = job( shift );
 	stopjob( $job );
-	$job->{deleted} = 1;
-	poll()
+	@readys = grep { $_ != $job->{id} } @readys;
+	@runs = grep { $_ != $job->{id} } @runs;
+	historize( delete $jobs{$job->{id}} );
+	1
 }
 
 sub killall {
