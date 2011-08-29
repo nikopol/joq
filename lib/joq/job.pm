@@ -240,7 +240,7 @@ sub start {
 			filog( $job, 'joq', $job->{fullname}.' started' );
 		}
 
-		my( $wout, $werr ); 
+		my( $wout, $werr );
 		$wout = AnyEvent->io(
 			fh   => $readout,
 			poll => 'r',
@@ -341,8 +341,10 @@ sub start {
 				push @args, $job->{args};
 			}
 		}
-		$e = system @args;
-		#exec join(' ',@args);
+		#$e = system @args;
+		exec join(' ',@args);
+		#my $cmd = join(' ',@args);
+		#`$cmd`;
 	}
 	exit $e;
 }
