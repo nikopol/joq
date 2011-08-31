@@ -458,7 +458,7 @@ sub kill {
 sub calcnextstart {
 	my $job = shift;
 	return undef if defined($job->{when}->{count}) && $job->{when}->{count}<1;
-	my $last = shift || $job->{laststart};
+	my $last = $job->{laststart};
 	if( $job->{when}->{repeat} ) {
 		my $e = $last ? $last + delay2sec($job->{when}->{repeat}) : time;
 		return e2date( $e );
@@ -478,13 +478,13 @@ sub calcnextstart {
 				$e -= $e % DAYSEC; #trunc to 0h00m00
 				($s,$m,$h,$day,$month,$year,$weekday,$yearday,$isdst) = localtime($e);
 			} until(
-				($job->{when}->{ndayofweek} && $job->{when}->{ndayofweek}->[$weekday]) ||
-				($job->{when}->{ndayofmonth} && $job->{when}->{ndayofmonth}->[$day]) ||
-				($job->{when}->{ndayofyear} && $job->{when}->{ndayofyear}->[$yearday])
+				($job->{when}->{ndayofweek}  && $job->{when}->{ndayofweek}->[$weekday]) ||
+				($job->{when}->{ndayofmonth} && $job->{when}->{ndayofmonth}->[$day])    ||
+				($job->{when}->{ndayofyear}  && $job->{when}->{ndayofyear}->[$yearday])
 			);
 			#get time
 			$n = 0;
-			$n++ while( $n < $nbtimes && $times[$n] + $e < $last );
+			$n++ while( $n < $nbtimes && $times[$n] + $e <= $last );
 		} while( $n >= $nbtimes );
 		$e += $times[$n];
 		return e2date( $e );
