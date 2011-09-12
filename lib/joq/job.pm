@@ -317,7 +317,7 @@ sub start {
 			my $o;
 			if( eval "require ".($job->{package} || $job->{class}) ) {
 				if( my $o = eval($job->{class}."->new") ) {
-					$e = $o->run($job->{args});
+					$e = 0+eval { $o->run($job->{args}) };
 				} else {
 					warn "CLASS ERROR: unable to call ".$job->{class}."->new\n";
 					$e = 254;
