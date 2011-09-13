@@ -316,7 +316,7 @@ sub start {
 			if( my $o = eval($job->{class}."->new") ) {
 				$e = eval { $o->run($job->{args}) };
 				if( $@ ) {
-					warn "CLASS ERROR: package $_\n";
+					warn "CLASS ERROR: $@\n";
 					$e = 255;
 				}
 			} else {
@@ -338,12 +338,9 @@ sub start {
 				push @args, $job->{args};
 			}
 		}
-		#$e = system @args;
 		exec join(' ',@args);
-		#my $cmd = join(' ',@args);
-		#`$cmd`;
 	}
-	exit $e || 0;
+	exit( $e ? 0+$e : 0 );
 }
 
 sub filog {
