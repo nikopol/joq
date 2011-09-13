@@ -7,7 +7,6 @@ use POSIX qw(:sys_wait_h);
 
 use AnyEvent;
 use DateTime;
-use Try::Tiny;
 
 use joq;
 use joq::logger;
@@ -304,31 +303,29 @@ sub start {
 		no strict;
 		use 5.010;
 		
-		try {
-			$e = 0+eval($job->{code});
-		} catch {
-			warn "CODE ERROR: $_\n";
+		$e = 0+eval($job->{code});
+		if( $@ ) {
+			warn "CODE ERROR: $@\n";
 			$e = 255;
 		}
 
 	} elsif( $job->{class} ) {
 
-		try {
-			my $o;
-			if( eval "require ".($job->{package} || $job->{class}) ) {
-				if( my $o = eval($job->{class}."->new") ) {
-					$e = eval { $o->run($job->{args}) || 0 };
-				} else {
-					warn "CLASS ERROR: unable to call ".$job->{class}."->new\n";
-					$e = 254;
+		my $o;
+		if( eval "require ".($job->{package} || $job->{class}) ) {
+			if( my $o = eval($job->{class}."->new") ) {
+				$e = eval { $o->run($job->{args}) };
+				if( $@ ) {
+					warn "CLASS ERROR: package $_\n";
+					$e = 255;
 				}
 			} else {
-				warn "CLASS ERROR: package ".($job->{package} || $job->{class})." not found\n";
-				$e = 253;
+				warn "CLASS ERROR: unable to call ".$job->{class}."->new\n";
+				$e = 254;
 			}
-		} catch {
-			warn "CLASS ERROR: package $_\n";
-			$e = 255;
+		} else {
+			warn "CLASS ERROR: package ".($job->{package} || $job->{class})." not found\n";
+			$e = 253;
 		}
 
 	} elsif( $job->{shell} ) {
@@ -346,7 +343,7 @@ sub start {
 		#my $cmd = join(' ',@args);
 		#`$cmd`;
 	}
-	exit $e;
+	exit $e || 0;
 }
 
 sub filog {
