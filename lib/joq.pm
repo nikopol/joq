@@ -622,11 +622,13 @@ EOTXT
 					my($out,$arg) = @_;
 					if( $arg ) {
 						if( $arg eq 'all' ) {
-							my @jobs = joq::queue::jobs();
+							my @jobs = map { delete $_->{logfh}; $_ } ( joq::queue::jobs() );
 							$out->dump(\@jobs,'jobs');
 						} else {
 							my $job = joq::queue::job( $arg );
 							if( $job ) {
+								$job = { %$job };
+								delete $job->{logfh};
 								$out->dump($job,'job');
 							} else {
 								my $deads = joq::queue::deadjobs( $arg );
