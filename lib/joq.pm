@@ -22,7 +22,7 @@ use constant {
 	SHELLOKNP   => 2,
 };
 
-our $VERSION = '0.0.15';
+our $VERSION = '0.0.16';
 
 our %cfg = (
 	server    => 'localhost:1970',
@@ -70,7 +70,7 @@ sub load {
 	if( $file ) {
 		my $f = length($file)>768 ? substr($file,0,768)."... [".length($file)." bytes]" : $file;
 		try {
-			log::debug("read/parse $f");
+			log::info("read/parse $f");
 			$data = parsefile( $file );
 		} catch {
 			log::error("read/parse $f : $_");
@@ -137,12 +137,23 @@ sub save {
 			%cfg,
 			%joq::queue::cfg,
 			%joq::job::cfg,
-			log      => log::config(),
-			jobs     => [ joq::queue::jobs() ],
-			remotes  => [ joq::remote::find('all') ],
+			log     => log::config(),
+			jobs    => [ joq::queue::jobs ],
+			jobs    => [ 
+				map {
+					my $job = { %$_ };
+					for(qw[args fixeday lastout lasterr]){
+						delete $job->{$_} unless $job->{$_} && @{$job->{$_}};
+					}
+					delete $job->{$_} for qw(afterdone fixeday id laststart pid fullname order lastimeout);
+					$job
+				} joq::queue::jobs 
+			],
+			remotes => [ joq::remote::find('all') ],
 		};
-		writefile( $fn, $s, 'json' );
-		log::debug('status saved in '.$fn);
+		delete $s->{$_} for qw(backup);
+		writefile( $fn, $s, 'yaml' );
+		log::info('state saved in '.$fn);
 	} catch {
 		log::error('error saving '.$fn.' : '.$_);
 		undef $fn;
@@ -164,7 +175,7 @@ sub config {
 			setpoll();
 		} else {
 			$cfg{$key} = $val;
-			log::notice("$key set to $val");
+			log::info("$key set to $val");
 		}
 	}
 	$cfg{$key};
@@ -270,7 +281,7 @@ EOTXT
 						);
 						foreach my $a ( @args ) {
 							my($k,$v) = $a =~ /^([^=]+)=(.+)$/;
-							if( $k && $k =~ /^(?:name|logfile|nice|priority)$/i && defined $v ) {
+							if( $k && $k =~ /^(?:name|logfile|nice|priority|timeout)$/i && defined $v ) {
 								$jobargs{$k} = $v;
 							} elsif( $k && $k =~ /^(?:delay|repeat|count|after|dayofweek|dow|dayofmonth|dom|dayofyear|doy|time|if|alone)$/i && defined $v ) {
 								log::debug("set when $k = $v");
@@ -390,10 +401,10 @@ EOTXT
 								name      => $job->{name},
 								laststart => $job->{laststart},
 								lastend   => $job->{lastend},
-								duration => joq::job::duration($job),
-								exitcode => $job->{exitcode},
-								lastout  => $job->{lastout},
-								lasterr  => $job->{lasterr}
+								duration  => joq::job::duration($job),
+								exitcode  => $job->{exitcode},
+								lastout   => $job->{lastout},
+								lasterr   => $job->{lasterr}
 
 							};
 						}
@@ -433,7 +444,11 @@ EOTXT
 								status => joq::queue::running($_) ? 'running pid='.$job->{pid} : 'pending',
 							};
 							for my $k (qw/start count after run repeat runcount exitcode/) {
-								my $v = defined $job->{when}->{$k} ? $job->{when}->{$k} : defined $job->{$k} ? $job->{$k} : undef;
+								my $v = defined $job->{when}{$k}
+									? $job->{when}{$k} 
+									: defined $job->{$k} 
+										? $job->{$k}
+										: undef;
 								if( $k eq 'after' && $v ) {
 									$v =~ s/$_/[$_]/ foreach( keys %{$job->{afterdone}} );
 								}
@@ -672,11 +687,11 @@ EOTXT
 				bin => sub {
 					my($out,$arg) = @_;
 					if( $arg ) {
-						if( joq::queue::stopjob( $arg ) ) {
-							$out->send('job stopped');
-						} else {
-							$out->send('job not found or not running');
-						}
+						$out->send(
+							joq::queue::stopjob( $arg )
+								? 'job stopped'
+								: 'job not found or not running'
+						);
 					} else {
 						$out->error('what job?');
 					}
@@ -794,7 +809,7 @@ EOINTRO
 										@remotes = joq::remote::synced;
 									}
 									my $dbg = "$cmd($arg)";
-									$dbg = substr($dbg,0,253)."..." if length($dbg)>256;
+									$dbg = substr($dbg,0,253).'...' if length($dbg)>256;
 									log::info("execute $dbg [".length($arg)." bytes] from $cnxid");
 									joq::remote::exec("$cmd $arg", \@remotes, $fh) 
 										if @remotes && $cmd =~ /load|list|show|add|del|stop|killall|shutdown/;
@@ -821,8 +836,8 @@ EOINTRO
 	log::notice('JoQ started');
 	joq::poll;
 	my $r = $w->recv;
-	joq::queue::killall;
 	backup;
+	joq::queue::killall;
 	log::notice('shutdown ('.$r.')');
 	$r;
 }

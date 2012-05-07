@@ -29,7 +29,7 @@ sub config {
 	return undef unless exists $cfg{$key};
 	if( defined $val ) {
 		$cfg{$key} = $val;
-		log::notice($key.' set to '.$val);
+		log::info($key.' set to '.$val);
 		$log::TZ = $val if $key eq 'timezone';
 	} else {
 		$val = $cfg{$key};
@@ -47,9 +47,10 @@ sub setup {
 	# code     = code_to_eval
 	# logfile  = log filename
     # priority = 1-10 (1=slow,10=speed,default=5) 
-	# if       = code_to_eval
 	# onfinish = sub (internal usage)
+	# timeout  = 4s|3m|2h|1d
 	# when = {
+	#   if: start_condition_to_eval
 	#   dayofweek:"all|sat,mon,1-7" 1=monday, time:"hh:mm,hh:mm,.."
 	#   dayofmonth:"all|1-31,...", time:"hh:mm,hh:mm,..."
 	#   dayofyear:"all|1-365,...", time:"hh:mm,hh:mm,..."
@@ -63,13 +64,13 @@ sub setup {
 	my $args = shift || {};
 	my $job = {
 		priority => 5,
-	 	%$args,
 		runcount => 0,
-		pid      => 0,
 		lastout  => [],
 		lasterr  => [],
 		laststart=> 0,
 		lastend  => 0,
+		%$args,
+		pid      => 0,
 		exitcode => undef,
 		afterdone=> {},
 	};
@@ -82,17 +83,17 @@ sub setup {
 	$job->{id} = $gid;
 	$job->{order} = ($job->{priority} * 100000) - $job->{id};
 	if( $job->{when} ) {
-		$job->{when}->{start} = e2date( time + delay2sec($job->{when}->{delay}) ) if $job->{when}->{delay};
-		$job->{when}->{dayofweek}  = delete $job->{when}->{dow} if $job->{when}->{dow};
-		$job->{when}->{dayofmonth} = delete $job->{when}->{dom} if $job->{when}->{dom};
-		$job->{when}->{dayofyear}  = delete $job->{when}->{doy} if $job->{when}->{doy};
+		$job->{when}{start} = e2date( time + delay2sec($job->{when}{delay}) ) if $job->{when}{delay};
+		$job->{when}{dayofweek}  = delete $job->{when}{dow} if $job->{when}{dow};
+		$job->{when}{dayofmonth} = delete $job->{when}{dom} if $job->{when}{dom};
+		$job->{when}{dayofyear}  = delete $job->{when}{doy} if $job->{when}{doy};
 		$job->{fixeday} = 0+
-			defined($job->{when}->{dayofweek})+ 
-			defined($job->{when}->{dayofmonth})+
-			defined($job->{when}->{dayofyear});
-		if( defined $job->{when}->{time} && !$job->{fixeday} ) {
+			defined($job->{when}{dayofweek})+ 
+			defined($job->{when}{dayofmonth})+
+			defined($job->{when}{dayofyear});
+		if( defined $job->{when}{time} && !$job->{fixeday} ) {
 			$job->{fixeday} = 1;
-			$job->{when}->{dayofweek} = 'all';
+			$job->{when}{dayofweek} = 'all';
 		}
 		if( $job->{fixeday} ) {
 			if( $job->{fixeday} > 1 ) {
@@ -100,8 +101,8 @@ sub setup {
 				return undef;
 			}
 			#normalize 'time'
-			$job->{when}->{time} = ['00:00:00'] unless defined $job->{when}->{time};
-			my @times = ref($job->{when}->{time}) eq 'ARRAY' ? @{$job->{when}->{time}} : split /[, ]/,$job->{when}->{time};
+			$job->{when}{time} = ['00:00:00'] unless defined $job->{when}{time};
+			my @times = ref($job->{when}{time}) eq 'ARRAY' ? @{$job->{when}{time}} : split /[, ]/,$job->{when}{time};
 			my @ntimes;
 			my $delta = DateTime->now( time_zone=>$cfg{timezone} )->offset;
 			foreach( @times ) {
@@ -112,11 +113,11 @@ sub setup {
 				push @ntimes, $h+$m+$s-$delta;
 			}
 			my @stimes = sort @ntimes;
-			$job->{when}->{ntime} = \@stimes;
+			$job->{when}{ntime} = \@stimes;
 			#log::debug('times='.join(',',@stimes));
 			#normalize 'dayofweek'
 			my $okday = 0;
-			if( my $dow = $job->{when}->{dayofweek} ) {
+			if( my $dow = $job->{when}{dayofweek} ) {
 				$dow = [ split(/[, ]/,$dow) ] unless ref($dow) eq 'ARRAY';
 				my @days = (
 					 "^(sun|dim)", "^(mon|lun)", "^(tue|mar)", "^(wed|mer)",
@@ -146,19 +147,17 @@ sub setup {
 					$jobdays[$n] = 1;
 					$okday++;
 				}
-				$job->{when}->{ndayofweek} = \@jobdays;
-				#log::debug('dayofweek='.join('',@jobdays));
-			#normalize 'dayofmonth' / 'dayofyear'
+				$job->{when}{ndayofweek} = \@jobdays;
 			} else {
 				my( $days, $max, $inc );
-				if( $job->{when}->{dayofmonth} ) {
+				if( $job->{when}{dayofmonth} ) {
 					$inc  = 0; 
 					$max  = 31;
-					$days = $job->{when}->{dayofmonth};
+					$days = $job->{when}{dayofmonth};
 				} else {
 					$inc  = 1;
 					$max  = 365;
-					$days = $job->{when}->{dayofyear};
+					$days = $job->{when}{dayofyear};
 				}
 				$days = [ split(/[, ]/,$days) ] unless ref($days) eq 'ARRAY';
 				my @jobdays = map { 0 } ( 0 .. $max );
@@ -177,12 +176,10 @@ sub setup {
                     $jobdays[$n-$inc] = 1;
 					$okday++;
 				}
-				if( $job->{when}->{dayofmonth} ) {
-					$job->{when}->{ndayofmonth} = \@jobdays;
-					#log::debug('dayofmonth='.join('',@jobdays));
+				if( $job->{when}{dayofmonth} ) {
+					$job->{when}{ndayofmonth} = \@jobdays;
 				} else {
-					$job->{when}->{ndayofyear} = \@jobdays;
-					#log::debug('dayofyear='.join('',@jobdays));
+					$job->{when}{ndayofyear} = \@jobdays;
 				}
 			}
 			unless( $okday ) {
@@ -190,11 +187,11 @@ sub setup {
 				return undef;
 			}
 		}
-		$job->{when}->{count} = 1 unless $job->{fixeday} || $job->{when}->{after} || $job->{when}->{repeat} || defined($job->{when}->{count});
+		$job->{when}{count} = 1 unless $job->{fixeday} || $job->{when}{after} || $job->{when}{repeat} || defined($job->{when}{count});
 	} else {
 		$job->{when} = { count=>1 }; #one shot by default
 	}
-	$job->{when}->{start} = calcnextstart( $job ) unless $job->{when}->{start};
+	$job->{when}{start} = calcnextstart( $job ) unless $job->{when}{start};
 	$job->{fullname} = 'job#'.$job->{id}.($job->{name}?' ['.$job->{name}.']':'');
 	log::notice($job->{fullname}.' of type '.($job->{code}?'code':$job->{class}?'class':'shell').' gonna start '.nextstart($job));
 	$job
@@ -280,6 +277,7 @@ sub start {
         );
 		$job->{laststart} = time;
 		$job->{lastend} = undef;
+		$job->{lastimeout} = time + delay2sec($job->{timeout}) if $job->{timeout};
 		log::notice($job->{fullname}.' started');
 		return $job->{pid};
 	}
@@ -385,10 +383,10 @@ sub delay2sec {
 sub finished {
 	my( $job, $exitcode ) = @_;
 	return 0 unless $job->{pid};
-	$job->{when}->{count}-- if defined $job->{when}->{count};
+	$job->{when}{count}-- if defined $job->{when}{count};
 	$job->{lastend} = time;
 	$job->{afterdone} = {};
-	$job->{when}->{start} = calcnextstart( $job );
+	$job->{when}{start} = calcnextstart( $job );
 	if( $exitcode ) {
 		$job->{exitcode} = $exitcode;
 	} else {
@@ -427,6 +425,11 @@ sub running {
 	$job->{pid}
 }
 
+sub timeout {
+	my $job = shift;
+	$job->{pid} && $job->{lastimeout} && $job->{lastimeout} < time() ? 1 : 0
+}
+
 sub stop {
 	my $job = shift;
 	return undef unless my $jid = running( $job );
@@ -451,15 +454,15 @@ sub kill {
 
 sub calcnextstart {
 	my $job = shift;
-	return undef if defined($job->{when}->{count}) && $job->{when}->{count}<1;
+	return undef if defined($job->{when}{count}) && $job->{when}{count}<1;
 	my $last = $job->{laststart};
-	if( $job->{when}->{repeat} ) {
-		my $e = $last ? $last + delay2sec($job->{when}->{repeat}) : time;
+	if( $job->{when}{repeat} ) {
+		my $e = $last ? $last + delay2sec($job->{when}{repeat}) : time;
 		return e2date( $e );
 	} elsif( $job->{fixeday} ) {
 		my $now = time;
 		$last ||= $now;
-		my @times = @{$job->{when}->{ntime}};
+		my @times = @{$job->{when}{ntime}};
 		my $nbtimes = scalar @times;
 		my $e = $last;
 		$e -= DAYSEC;
@@ -472,9 +475,9 @@ sub calcnextstart {
 				$e -= $e % DAYSEC; #trunc to 0h00m00
 				($s,$m,$h,$day,$month,$year,$weekday,$yearday,$isdst) = localtime($e);
 			} until(
-				($job->{when}->{ndayofweek}  && $job->{when}->{ndayofweek}->[$weekday]) ||
-				($job->{when}->{ndayofmonth} && $job->{when}->{ndayofmonth}->[$day])    ||
-				($job->{when}->{ndayofyear}  && $job->{when}->{ndayofyear}->[$yearday])
+				($job->{when}{ndayofweek}  && $job->{when}{ndayofweek}->[$weekday]) ||
+				($job->{when}{ndayofmonth} && $job->{when}{ndayofmonth}->[$day])    ||
+				($job->{when}{ndayofyear}  && $job->{when}{ndayofyear}->[$yearday])
 			);
 			#get time
 			$n = 0;
@@ -502,26 +505,26 @@ sub nextstart {
 sub startable {
 	my( $job, $jobend ) = @_;
 	return 0 if dead( $job );
-	if( defined $job->{when}->{start} ) {
+	if( defined $job->{when}{start} ) {
 		my $d = e2date( time );
-		return 0 if(($d cmp $job->{when}->{start}) < 0);
+		return 0 if(($d cmp $job->{when}{start}) < 0);
 	}
-	if( $job->{when}->{if} ) {
-		unless( eval($job->{when}->{if}) ) {
+	if( $job->{when}{if} ) {
+		unless( eval($job->{when}{if}) ) {
 			log::debug $job->{fullname}.' dont pass its "if" condition';
 			return 0;
 		}
 		log::debug  $job->{fullname}.' validate its "if" condition';
 	}
-	if( $job->{when}->{after} ) {
+	if( $job->{when}{after} ) {
 		my $ok = 0;
-		foreach my $or ( split /[|]| or /i, $job->{when}->{after} ) {
+		foreach my $or ( split /[|]| or /i, $job->{when}{after} ) {
 			my $okand = 1;
 			foreach my $and ( split /[&+]| and /i, $or ) {
 				$and =~ s/^\s+//;
 				$and =~ s/\s+$//;
-				$job->{afterdone}->{$and} = $jobend->{$and} if $jobend->{$and};
-				$okand &= exists $job->{afterdone}->{$and};
+				$job->{afterdone}{$and} = $jobend->{$and} if $jobend->{$and};
+				$okand &= exists $job->{afterdone}{$and};
 			}
 			$ok |= $okand;
 		}
@@ -532,7 +535,7 @@ sub startable {
 
 sub dead {
 	my $job = shift;
-	defined $job->{when}->{count} && $job->{when}->{count}<1;
+	defined $job->{when}{count} && $job->{when}{count}<1;
 }
 
 1;

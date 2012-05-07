@@ -9,20 +9,19 @@ use joq;
 use joq::client;
 
 GetOptions(
-	'help|h|?'         => \my $help,
-	'deamon|d'         => \my $daemonize,
-	'jobs|j|file|f=s'  => \my $confile,
-	'log|l=s'          => \my $log,
-	'loglevel|ll=s'    => \my $loglevel,
-	'logfile|lf=s'     => \my $logfile,
-	's|server=s'       => \my $server,
-	'polling|poll|p=s' => \my $polling,
-	'backup|b=s'       => \my $backup,
-	'timezone|tz=s'    => \my $timezone,
-	'oneshot|os|q'     => \my $oneshot,
-	'maxfork|m=s'      => \my $maxfork,
-	'user|u=s'         => \my $user,
-	'demo'             => \my $demo,
+	'help|h|?'           => \my $help,
+	'deamon|d'           => \my $daemonize,
+	'log|l=s'            => \my $log,
+	'loglevel|ll=s'      => \my $loglevel,
+	'logfile|lf=s'       => \my $logfile,
+  's|server=s'         => \my $server,
+  'b|backup=s'         => \my $backup,
+	'polling|poll|p=s'   => \my $polling,
+	'timezone|tz=s'      => \my $timezone,
+	'oneshot|os|q'       => \my $oneshot,
+	'maxfork|m=s'        => \my $maxfork,
+	'user|u=s'           => \my $user,
+	'demo'               => \my $demo,
 );
 
 my $SAMPLE = <<EOSAMPLE
@@ -61,14 +60,13 @@ JOQ v$joq::VERSION
 niko °L° 2010-2011
 
 syntax:
-$0 [options] [configfile]
+$0 [options] [jobsfile]
 
 avalaible options:
  -h -help              : order a double pepperoni pizza
  -demo                 : run the sample config file (see below)
  -d -daemon            : spawn as deamon from the fifth circle
  -u -user user         : set joq uid (only if started as root)
- -f -file filename     : config file to load
  -l -log mode          : output to stdout color(default),long,short,none
  -ll -loglevel level   : error,warning,notice,info(default),debug
  -lf -logfile filename : output log to filename
@@ -76,14 +74,19 @@ avalaible options:
                          disabled= -s off
                           default= -s localhost:1970
  -p -poll -polling s   : set polling to s seconds (default=10s)
- -b -backup file       : set where current state is saved
+ -b backupfile         : set backup file
+                         disabled= -b off
+                          default= -b ./joq.conf
  -tz -timezone zone    : set time zone (default=Europe/Paris)
  -q -oneshot           : quit on empty queue
  -m -maxfork int       : set max concurent job (default=4)
 
 notes:
-  options overload config file parameters
-  configfile can be in yaml or json.
+  options overload jobs/backup file parameters
+  the only argument is an optionnal jobs/config file (json or yaml)
+  current state will be saved in backup file (by default ./joq.conf)
+  if no jobs/config file is provided and a backup file is found,
+  it will be loaded automatically at startup
 
 sample config file:
 $SAMPLE
@@ -99,6 +102,7 @@ job parameters:
               if jobname is not provided, first job is taken
   priority => 1-10 (1=not urgent,10=urgent,default=5) 
   logfile  => filename for job independant log output
+  timeout  => duration (default=no timeout)
   when     => {
      if         => perl_code_to_eval as start condition
      alone      => 0|1 start only if no jobs running, 
@@ -136,14 +140,13 @@ EODEMO
 }
 
 my %o;
-$confile = shift @ARGV if @ARGV && !$confile;
-die "sorry master but I don't understand\n".
-	"$confile doesn't exists or is not readable\n"
-	unless !$confile || -r $confile;
-$o{load}    = $confile if $confile;
+
 $o{server}  = $server || 'localhost:1970';
 $o{polling} = $polling if $polling;
-$o{backup}  = $backup if $backup;
+$o{backup}  = $backup || './joq.conf';
+delete $o{backup} if $o{backup} =~ /off|disabled?/i;
+my $load    = @ARGV ? shift @ARGV : $o{backup};
+$o{load}    = $load if -e $load;
 $o{oneshot} = 1 if $oneshot;
 $o{maxfork} = $maxfork if $maxfork;
 $o{log_level}  = $loglevel if $loglevel;

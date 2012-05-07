@@ -32,7 +32,7 @@ sub config {
 			$cfg{$key} = 0 if 0+$val < 0;
 			histurn();
 		}
-		log::notice($key.' set to '.$cfg{$key});
+		log::info($key.' set to '.$cfg{$key});
 	} else { 
 		$val = $cfg{$key};
 	}
@@ -57,7 +57,7 @@ sub jobids {
 }
 
 sub jobs {
-	values %jobs;
+	values %jobs
 }
 
 sub deadjobs {
@@ -78,7 +78,7 @@ sub addjobs {
 	return 0 unless $newjobs;
 	$newjobs = [ $newjobs ] unless ref($newjobs) eq 'ARRAY';
 	my $adds = [];
-	log::info('queuing '.@$newjobs.' jobs');
+	log::debug('queuing '.@$newjobs.' jobs');
 	foreach( @$newjobs ) {
 		my $job = addjob( $_, 0 );
 		push( @$adds, { id => $job->{id}, fullname => $job->{fullname} } ) if $job;
@@ -93,7 +93,7 @@ sub addjob {
 	if( $job ) {
 		if( !exists $jobs{$job->{id}} ) {
 			$jobs{$job->{id}} = $job;
-			log::info($job->{fullname}.' queued');
+			log::notice($job->{fullname}.' queued');
 		} else {
 			log::error($job->{fullname}.' already queued, ignored');
 		}
@@ -114,7 +114,7 @@ sub stopjob {
 	} else {
 		log::notice($job->{fullname}.' softly stopped');
 	}
-	$alone = 0 if $job->{when}->{alone} && !joq::job::running( $job );
+	$alone = 0 if $job->{when}{alone} && !joq::job::running( $job );
 	1;
 }
 
@@ -190,10 +190,18 @@ sub poll {
 		my @alive;
 		foreach my $jid ( @runs ) {
 			my $job = $jobs{$jid};
-			if( joq::job::running($job) ) {
+			my $run = joq::job::running($job);
+			if( $run ) {
 				log::debug($job->{fullname}.' still running');
-				push @alive, $jid;
-			} else {
+				if(joq::job::timeout($job)){
+					log::warning($job->{fullname}.' timeout');
+					stopjob($job);
+					undef $run;
+				} else {
+					push @alive, $jid;
+				}
+			}
+			unless( $run ){
 				$finished{$job->{name}} = $jid if exists $job->{name};
 				$runcount++;
 				if( joq::job::dead($job) ) {
@@ -224,7 +232,7 @@ sub poll {
 			while( my $jid = shift @readys ) {
 				if( @runs < $cfg{maxfork} ) {
 					my $job = $jobs{$jid};
-					my $wal = $job->{when}->{alone};
+					my $wal = $job->{when}{alone};
 					if( $wal && scalar @runs ) {
 						push @stillreadys, $jid;
 					} elsif(joq::job::start( $job )) {
