@@ -22,7 +22,7 @@ use constant {
 	SHELLOKNP   => 2,
 };
 
-our $VERSION = '0.0.16';
+our $VERSION = '0.0.17';
 
 our %cfg = (
 	server    => 'localhost:1970',
@@ -32,6 +32,7 @@ our %cfg = (
 );
 
 my $running  = 0;
+my $softstop = 0;
 my %watch;
 my $w;
 
@@ -181,7 +182,13 @@ sub config {
 	$cfg{$key};
 }
 
-sub stopevents { delete $watch{$_} for( keys %watch ) }
+sub stopevents {
+	# for( keys %watch ){
+	# 	my $w = delete $watch{$_};
+	# 	$w->destroy;
+	# }
+	delete $watch{$_} for keys %watch;
+}
 
 sub setpoll {
 	my $sec = shift || $cfg{polling};
@@ -195,8 +202,9 @@ sub setpoll {
 }
 
 sub poll {
-	my( $queued, $running, $event ) = joq::queue::poll;
+	my( $queued, $running, $event ) = joq::queue::poll( $softstop );
 	$w->send('oneshot') if !$queued && $cfg{oneshot};
+	$w->send('soft stop') if !$running && $softstop;
 }
 
 sub run {
@@ -212,8 +220,14 @@ sub run {
 	$watch{sigint} = AnyEvent->signal(
 		signal => 'INT',
 		cb     => sub {
-			log::debug('SIGINT! sending stop');
-			$w->send( "stopped from console" );
+			if( $softstop ) {
+				log::debug('SIGINT! hard stop');
+				$w->send( "hard stop" );
+			} else {
+				log::debug('SIGINT! soft stop - hit CTRL+C again to hard stop');
+				$softstop = 1;
+				joq::poll();
+			}
 		},
 	);
 
@@ -658,8 +672,10 @@ EOTXT
 			shutdown => {
 				txt => "send the daemon to the graveyard",
 				bin => sub {
-					shift->send('zogzog');
-					$w->send( 'stopped from server' );
+					shift->send('starting soft stop');
+					$softstop = 1;
+
+					#$w->send( 'stopped from server' );
 					SHELLCLOSE;
 				}
 			},
