@@ -54,7 +54,7 @@ sub setup {
 	$TZ = $arg{timezone} if $arg{timezone};
 	level( $arg{level} ) if $arg{level};
 	#at least output to stdout
-	$arg{mode} = 'colored' unless $arg{mode} || $arg{file};
+	$arg{mode} = 'color' unless $arg{mode} || $arg{file};
 	addout( '*STDOUT', $arg{mode} ) if $arg{mode};
 	addout( $arg{file}, LONG ) if $arg{file};
 	1;
@@ -127,7 +127,7 @@ sub addout {
 		};
 	}
 	return 0 unless $handle;
-	my $l = defined $level ? findlevel($level,LOGLEVELS,LOGINFO) : undef;
+	my $l = defined $level ? findlevel($level,LOGLEVELS,LOGINFO) : $loglevel;
 	my $m = findlevel($mode,MODES,COLOR);
 	$out{$name} = [ $handle, $m, $l, $own ];
 	debug($name.' opened (level='.($l?LOGLEVELS->[$l]:'default').',mode='.MODES->[$m].')');
