@@ -90,6 +90,22 @@ sub hmerge {
 	$a;
 }
 
+sub hcopy {
+	my $h = shift;
+	return {} unless $h && ref($h) eq 'HASH';
+	my $c = {};
+	for my $k ( key %$h ){
+		if(ref($h->{$k}) eq 'ARRAY'){
+			$c->{$k} = [ @{$h->{$k}} ];
+		} elsif(ref($h->{$k}) eq 'HASH'){
+			$c->{$k} = hcopy $h->{$k};
+		} else {
+			$c->{$k} = $h->{$k};
+		}
+	}
+	$c
+}
+
 sub loadjobs {
 	my( $list, $path ) = @_;
 	$list = [ $list ] unless ref($list) eq 'ARRAY';
@@ -139,14 +155,14 @@ sub save {
 			%joq::queue::cfg,
 			%joq::job::cfg,
 			log     => log::config(),
-			jobs    => [ joq::queue::jobs ],
 			jobs    => [ 
 				map {
-					my $job = { %$_ };
+					my $job = { %$_, when=>{ %{$_->{when}} } };
 					for(qw[args fixeday lastout lasterr]){
-						delete $job->{$_} unless $job->{$_} && @{$job->{$_}};
+						delete $job->{$_} unless ref($job->{$_}) eq 'ARRAY' && @{$job->{$_}};
 					}
 					delete $job->{$_} for qw(afterdone fixeday id laststart pid fullname order lastimeout);
+					delete $job->{when}{$_} for qw(start ntime ndayofweek ndayofmonth ndayofyear);
 					$job
 				} joq::queue::jobs 
 			],
