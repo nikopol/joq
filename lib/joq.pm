@@ -90,20 +90,20 @@ sub hmerge {
 	$a;
 }
 
-sub hcopy {
+sub deepcopy {
 	my $h = shift;
-	return {} unless $h && ref($h) eq 'HASH';
-	my $c = {};
-	for my $k ( key %$h ){
-		if(ref($h->{$k}) eq 'ARRAY'){
-			$c->{$k} = [ @{$h->{$k}} ];
-		} elsif(ref($h->{$k}) eq 'HASH'){
-			$c->{$k} = hcopy $h->{$k};
-		} else {
-			$c->{$k} = $h->{$k};
-		}
+	return $h unless ref $h;
+	if( ref($h) eq 'HASH' ) {
+		my $c = {};
+		$c->{$_} = deepcopy($h->{$_}) for keys %$h;
+		return $c;
 	}
-	$c
+	if( ref($h) eq 'ARRAY' ) {
+		my $c = [];
+		push @$c, deepcopy($_) for @$h;
+		return $c;
+	}
+	undef;
 }
 
 sub loadjobs {
@@ -157,9 +157,9 @@ sub save {
 			log     => log::config(),
 			jobs    => [ 
 				map {
-					my $job = { %$_, when=>{ %{$_->{when}} } };
+					my $job = deepcopy $_;
 					for(qw[args fixeday lastout lasterr]){
-						delete $job->{$_} unless ref($job->{$_}) eq 'ARRAY' && @{$job->{$_}};
+						delete $job->{$_} unless ref($job->{$_}) ne 'ARRAY' || @{$job->{$_}};
 					}
 					delete $job->{$_} for qw(afterdone fixeday id laststart pid fullname order lastimeout);
 					delete $job->{when}{$_} for qw(start ntime ndayofweek ndayofmonth ndayofyear);
