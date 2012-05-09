@@ -22,7 +22,7 @@ use constant {
 	SHELLOKNP   => 2,
 };
 
-our $VERSION = '0.0.15';
+our $VERSION = '0.0.18';
 
 our %cfg = (
 	server    => 'localhost:1970',
@@ -31,7 +31,8 @@ our %cfg = (
 	polling   => 10,
 );
 
-my $running  = 0;
+my $started  = 0;
+my $softstop = 0;
 my %watch;
 my $w;
 
@@ -45,7 +46,7 @@ sub init {
 	}
 	#setup log
 	$arg{log} = {} unless exists $arg{log};
-	for(qw(level file screen)) {
+	for(qw(level file mode)) {
 		$arg{log}->{$_} = delete $arg{"log_$_"} if exists $arg{"log_$_"};
 	}
 	log::setup( %{$arg{log}} );
@@ -70,7 +71,7 @@ sub load {
 	if( $file ) {
 		my $f = length($file)>768 ? substr($file,0,768)."... [".length($file)." bytes]" : $file;
 		try {
-			log::debug("read/parse $f");
+			log::info("read/parse $f");
 			$data = parsefile( $file );
 		} catch {
 			log::error("read/parse $f : $_");
@@ -87,6 +88,22 @@ sub hmerge {
 			: hmerge( $a->{$k}, $b->{$k} );
 	}
 	$a;
+}
+
+sub deepcopy {
+	my $h = shift;
+	return $h unless ref $h;
+	if( ref($h) eq 'HASH' ) {
+		my $c = {};
+		$c->{$_} = deepcopy($h->{$_}) for keys %$h;
+		return $c;
+	}
+	if( ref($h) eq 'ARRAY' ) {
+		my $c = [];
+		push @$c, deepcopy($_) for @$h;
+		return $c;
+	}
+	undef;
 }
 
 sub loadjobs {
@@ -137,12 +154,23 @@ sub save {
 			%cfg,
 			%joq::queue::cfg,
 			%joq::job::cfg,
-			log      => log::config(),
-			jobs     => [ joq::queue::jobs() ],
-			remotes  => [ joq::remote::find('all') ],
+			log     => log::config(),
+			jobs    => [ 
+				map {
+					my $job = deepcopy $_;
+					for(qw[args fixeday lastout lasterr]){
+						delete $job->{$_} unless ref($job->{$_}) ne 'ARRAY' || @{$job->{$_}};
+					}
+					delete $job->{$_} for qw(afterdone fixeday id laststart pid fullname order lastimeout);
+					delete $job->{when}{$_} for qw(start ntime ndayofweek ndayofmonth ndayofyear);
+					$job
+				} joq::queue::jobs 
+			],
+			remotes => [ joq::remote::find('all') ],
 		};
-		writefile( $fn, $s, 'json' );
-		log::debug('status saved in '.$fn);
+		delete $s->{$_} for qw(backup);
+		writefile( $fn, $s, 'yaml' );
+		log::info('state saved in '.$fn);
 	} catch {
 		log::error('error saving '.$fn.' : '.$_);
 		undef $fn;
@@ -164,13 +192,19 @@ sub config {
 			setpoll();
 		} else {
 			$cfg{$key} = $val;
-			log::notice("$key set to $val");
+			log::info("$key set to $val");
 		}
 	}
 	$cfg{$key};
 }
 
-sub stopevents { delete $watch{$_} for( keys %watch ) }
+sub stopevents {
+	# for( keys %watch ){
+	# 	my $w = delete $watch{$_};
+	# 	$w->destroy;
+	# }
+	delete $watch{$_} for keys %watch;
+}
 
 sub setpoll {
 	my $sec = shift || $cfg{polling};
@@ -184,13 +218,14 @@ sub setpoll {
 }
 
 sub poll {
-	my( $queued, $running, $event ) = joq::queue::poll;
+	my( $queued, $running, $event ) = joq::queue::poll( $softstop );
 	$w->send('oneshot') if !$queued && $cfg{oneshot};
+	$w->send('soft stop') if !$running && $softstop;
 }
 
 sub run {
-	return -1 if $running;
-	$running = 1;
+	return -1 if $started;
+	$started = 1;
 	init( @_ );
 
 	my $start = time;
@@ -201,8 +236,14 @@ sub run {
 	$watch{sigint} = AnyEvent->signal(
 		signal => 'INT',
 		cb     => sub {
-			log::debug('SIGINT! sending stop');
-			$w->send( "stopped from console" );
+			if( $softstop ) {
+				log::debug('SIGINT! hard stop');
+				$w->send( 'hard stop' );
+			} else {
+				log::debug('SIGINT! soft stop - slap me again to hard stop');
+				$softstop = 1;
+				joq::poll();
+			}
 		},
 	);
 
@@ -270,7 +311,7 @@ EOTXT
 						);
 						foreach my $a ( @args ) {
 							my($k,$v) = $a =~ /^([^=]+)=(.+)$/;
-							if( $k && $k =~ /^(?:name|logfile|nice|priority)$/i && defined $v ) {
+							if( $k && $k =~ /^(?:name|logfile|nice|priority|timeout)$/i && defined $v ) {
 								$jobargs{$k} = $v;
 							} elsif( $k && $k =~ /^(?:delay|repeat|count|after|dayofweek|dow|dayofmonth|dom|dayofyear|doy|time|if|alone)$/i && defined $v ) {
 								log::debug("set when $k = $v");
@@ -390,10 +431,10 @@ EOTXT
 								name      => $job->{name},
 								laststart => $job->{laststart},
 								lastend   => $job->{lastend},
-								duration => joq::job::duration($job),
-								exitcode => $job->{exitcode},
-								lastout  => $job->{lastout},
-								lasterr  => $job->{lasterr}
+								duration  => joq::job::duration($job),
+								exitcode  => $job->{exitcode},
+								lastout   => $job->{lastout},
+								lasterr   => $job->{lasterr}
 
 							};
 						}
@@ -433,7 +474,11 @@ EOTXT
 								status => joq::queue::running($_) ? 'running pid='.$job->{pid} : 'pending',
 							};
 							for my $k (qw/start count after run repeat runcount exitcode/) {
-								my $v = defined $job->{when}->{$k} ? $job->{when}->{$k} : defined $job->{$k} ? $job->{$k} : undef;
+								my $v = defined $job->{when}{$k}
+									? $job->{when}{$k} 
+									: defined $job->{$k} 
+										? $job->{$k}
+										: undef;
 								if( $k eq 'after' && $v ) {
 									$v =~ s/$_/[$_]/ foreach( keys %{$job->{afterdone}} );
 								}
@@ -645,7 +690,11 @@ EOTXT
 			shutdown => {
 				txt => "send the daemon to the graveyard",
 				bin => sub {
-					shift->send('zogzog');
+					unless( $softstop ) {
+						shift->send('starting soft stop ('.joq::queue::runcount().' jobs running)');
+						$softstop = 1;
+						return SHELLOK;
+					}
 					$w->send( 'stopped from server' );
 					SHELLCLOSE;
 				}
@@ -674,11 +723,11 @@ EOTXT
 				bin => sub {
 					my($out,$arg) = @_;
 					if( $arg ) {
-						if( joq::queue::stopjob( $arg ) ) {
-							$out->send('job stopped');
-						} else {
-							$out->send('job not found or not running');
-						}
+						$out->send(
+							joq::queue::stopjob( $arg )
+								? 'job stopped'
+								: 'job not found or not running'
+						);
 					} else {
 						$out->error('what job?');
 					}
@@ -796,7 +845,7 @@ EOINTRO
 										@remotes = joq::remote::synced;
 									}
 									my $dbg = "$cmd($arg)";
-									$dbg = substr($dbg,0,253)."..." if length($dbg)>256;
+									$dbg = substr($dbg,0,253).'...' if length($dbg)>256;
 									log::info("execute $dbg [".length($arg)." bytes] from $cnxid");
 									joq::remote::exec("$cmd $arg", \@remotes, $fh) 
 										if @remotes && $cmd =~ /load|list|show|add|del|stop|killall|shutdown/;
@@ -823,8 +872,8 @@ EOINTRO
 	log::notice('JoQ started');
 	joq::poll;
 	my $r = $w->recv;
-	joq::queue::killall;
 	backup;
+	joq::queue::killall;
 	log::notice('shutdown ('.$r.')');
 	$r;
 }

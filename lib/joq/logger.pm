@@ -45,15 +45,17 @@ my %out; #name=[handle,mode,level,own]
 my $rotcount = 0;
 
 #params: logfile or hash options (all optional)
-#  file   => filename
-#  screen => short|long|color : color by default if no file provided
-#  level  => error|warning|info|notice|debug  : set default loglevel
+#  file  => filename
+#  mode  => short|long|color : color by default if no output defined
+#  level => error|warning|info|notice|debug  : set default loglevel
 
 sub setup {
 	my %arg = @_;
 	$TZ = $arg{timezone} if $arg{timezone};
 	level( $arg{level} ) if $arg{level};
-	addout( '*STDOUT', $arg{screen} ) if $arg{screen};
+	#at least output to stdout
+	$arg{mode} = 'color' unless $arg{mode} || $arg{file};
+	addout( '*STDOUT', $arg{mode} ) if $arg{mode};
 	addout( $arg{file}, LONG ) if $arg{file};
 	1;
 }
@@ -63,7 +65,7 @@ sub config {
 	foreach( keys %out ) {
 		my($h,$m,$l) = @{$out{$_}};
 		if( $_ eq '*STDOUT' ) {
-			$c->{screen} = MODES->[$m];
+			$c->{mode} = MODES->[$m];
 		} else {
 			$c->{file} = $_;
 		}
@@ -125,7 +127,7 @@ sub addout {
 		};
 	}
 	return 0 unless $handle;
-	my $l = defined $level ? findlevel($level,LOGLEVELS,LOGINFO) : undef;
+	my $l = defined $level ? findlevel($level,LOGLEVELS,LOGINFO) : $loglevel;
 	my $m = findlevel($mode,MODES,COLOR);
 	$out{$name} = [ $handle, $m, $l, $own ];
 	debug($name.' opened (level='.($l?LOGLEVELS->[$l]:'default').',mode='.MODES->[$m].')');

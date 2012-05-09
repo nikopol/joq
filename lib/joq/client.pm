@@ -71,7 +71,7 @@ sub read {
 	$SIG{ALRM} = sub { die "read timeout\n"; };
 	alarm READTIMEOUT;
 	while( $buf !~ /\>$/ ) {
-		sysread( $self->{sock}, $buf, 16384, length($buf) ) || return $self->error('connection closed');
+		sysread( $self->{sock}, $buf, 262143, length($buf) ) || return $self->error('connection closed');
 	}
 	alarm 0;
 	my @lines = split(/\n/, $buf);
