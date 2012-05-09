@@ -11,7 +11,7 @@ use joq::client;
 GetOptions(
 	'help|h|?'           => \my $help,
 	'deamon|d'           => \my $daemonize,
-	'log|l=s'            => \my $log,
+	'log|l=s'            => \my $logmode,
 	'loglevel|ll=s'      => \my $loglevel,
 	'logfile|lf=s'       => \my $logfile,
   's|server=s'         => \my $server,
@@ -149,10 +149,9 @@ my $load    = @ARGV ? shift @ARGV : $o{backup};
 $o{load}    = $load if -e $load;
 $o{oneshot} = 1 if $oneshot;
 $o{maxfork} = $maxfork if $maxfork;
-$o{log_level}  = $loglevel if $loglevel;
-$o{log_file}   = $logfile if $logfile;
-$log = 'color' unless defined $log;
-$o{log_screen} = $log unless $log =~ /none/i;
+$o{log_level} = $loglevel if $loglevel;
+$o{log_file}  = $logfile if $logfile;
+$o{log_mode}  = $logmode if $logmode;
 
 if( $user ) {
 	die("you must be root to change uid to $user\n") if $<;

@@ -17,8 +17,6 @@ GetOptions(
 	'mode|m|format|fmt|f=s' => \my $mode,
 );
 
-
-
 my $o = {
 	debug  => $debug   || 0,
 	server => $server  || 'localhost:1970',

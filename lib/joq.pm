@@ -22,7 +22,7 @@ use constant {
 	SHELLOKNP   => 2,
 };
 
-our $VERSION = '0.0.17';
+our $VERSION = '0.0.18';
 
 our %cfg = (
 	server    => 'localhost:1970',
@@ -46,7 +46,7 @@ sub init {
 	}
 	#setup log
 	$arg{log} = {} unless exists $arg{log};
-	for(qw(level file screen)) {
+	for(qw(level file mode)) {
 		$arg{log}->{$_} = delete $arg{"log_$_"} if exists $arg{"log_$_"};
 	}
 	log::setup( %{$arg{log}} );
