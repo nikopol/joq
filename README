@@ -1,5 +1,5 @@
 JOb Queue
-niko 2010
+niko 2010-2012
 
 
 ## DESCRIPTION
@@ -47,25 +47,26 @@ jobs options :
   code     = perl_code_to_eval
   priority = 1-10 (1=slow,10=speed,default=5) 
   logfile  = filename for job log output
+  timeout  = duration* (default=unlimited)
   when     = {
-     dayofweek:"all|sat,mon,1-7" 1=monday, time:"hh:mm,hh:mm,.."
-     dayofmonth:"all|1-31,...", time:"hh:mm,hh:mm,..."
-     dayofyear:"all|1-365,...", time:"hh:mm,hh:mm,..."
-     repeat:seconds
-     after:"job1 or job2 and job3"
-     start:"yyyy-mm-dd hh:mm"
-     if:perl_code_to_eval as start condition
-     delay:seconds
-     count:nbtime
+     dayofweek:  "all|sat,mon,1-7" 1=monday, time:"hh:mm,hh:mm,.."
+     dayofmonth: "all|1-31,...", time:"hh:mm,hh:mm,..."
+     dayofyear: "all|1-365,...", time:"hh:mm,hh:mm,..."
+     repeat: duration*
+     after: "job1 or job2 and job3"
+     start: "yyyy-mm-dd hh:mm"
+     if: perl_code_to_eval as start condition
+     delay: duration*
+     count: nbtime
   } default={ count:1 }
+
+*duration can be expressed as 12 / 12s / 2m / 5h
 
 ## USECASE
 
-joq -d
+bin/joq -d
 telnet localhost 1970
 addjob myscript repeat=120
 list
 status
 quit
-
-

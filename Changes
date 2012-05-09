@@ -1,4 +1,7 @@
-Revision history for joq
+revision history for joq
 
-0.01    2010-11-26
-		- Cerberus is dead, orc is dead, long live joq !
+0.0.18 2010-05-09
+	- soft stop
+	- job's timeout
+	- improved backup
+	- improved stop & restart
