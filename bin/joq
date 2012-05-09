@@ -14,8 +14,8 @@ GetOptions(
 	'log|l=s'            => \my $logmode,
 	'loglevel|ll=s'      => \my $loglevel,
 	'logfile|lf=s'       => \my $logfile,
-  's|server=s'         => \my $server,
-  'b|backup=s'         => \my $backup,
+	's|server=s'         => \my $server,
+	'b|backup=s'         => \my $backup,
 	'polling|poll|p=s'   => \my $polling,
 	'timezone|tz=s'      => \my $timezone,
 	'oneshot|os|q'       => \my $oneshot,
@@ -171,10 +171,10 @@ if( $daemonize ) {
 	open STDIN, '/dev/null' or die "can't read /dev/null: $!";
 	open STDOUT, '>/dev/null' or die "can't write to /dev/null: $!";
 	defined(my $pid = fork) or die "can't fork: $!";
-	exit if $pid;
+	exit 0 if $pid;
 	die "can't start a new session: $!" if setsid == -1;
 	open STDERR, '>&STDOUT' or die "can't dup stdout: $!";
-	delete $o{log_screen};
+	delete $o{log_mode};
 }
 
 joq::run( %o );
