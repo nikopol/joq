@@ -294,6 +294,8 @@ sub start {
 	joq::stopevents();
 	sleep 1; #wait for parent event hook
 
+	local $SIG{INT} = 'IGNORE';
+
 	my $e = 0;
 	if( $job->{code} ) {
 
@@ -434,10 +436,10 @@ sub stop {
 	my $job = shift;
 	return undef unless my $jid = running( $job );
 	unless( kill( 15, $jid ) ) {
-		log::debug($job->{fullname}.' did not receive int signal');
+		log::debug($job->{fullname}.' did not receive term signal');
 		return 0;
 	}
-	log::debug($job->{fullname}.' send int signal');
+	log::debug($job->{fullname}.' send term signal');
 	1
 }
 

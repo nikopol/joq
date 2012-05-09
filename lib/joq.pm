@@ -31,7 +31,7 @@ our %cfg = (
 	polling   => 10,
 );
 
-my $running  = 0;
+my $started  = 0;
 my $softstop = 0;
 my %watch;
 my $w;
@@ -224,8 +224,8 @@ sub poll {
 }
 
 sub run {
-	return -1 if $running;
-	$running = 1;
+	return -1 if $started;
+	$started = 1;
 	init( @_ );
 
 	my $start = time;
@@ -238,9 +238,9 @@ sub run {
 		cb     => sub {
 			if( $softstop ) {
 				log::debug('SIGINT! hard stop');
-				$w->send( "hard stop" );
+				$w->send( 'hard stop' );
 			} else {
-				log::debug('SIGINT! soft stop - hit CTRL+C again to hard stop');
+				log::debug('SIGINT! soft stop - slap me again to hard stop');
 				$softstop = 1;
 				joq::poll();
 			}
@@ -688,10 +688,12 @@ EOTXT
 			shutdown => {
 				txt => "send the daemon to the graveyard",
 				bin => sub {
-					shift->send('starting soft stop');
-					$softstop = 1;
-
-					#$w->send( 'stopped from server' );
+					unless( $softstop ) {
+						shift->send('starting soft stop ('.joq::queue::runcount().' jobs running)');
+						$softstop = 1;
+						return SHELLOK;
+					}
+					$w->send( 'stopped from server' );
 					SHELLCLOSE;
 				}
 			},

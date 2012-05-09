@@ -73,6 +73,10 @@ sub running {
 	grep { $_ eq $job->{id} } @runs;
 }
 
+sub runcount {
+	scalar @runs
+}
+
 sub addjobs {
 	my $newjobs = shift;
 	return 0 unless $newjobs;
@@ -128,7 +132,7 @@ sub deljob {
 }
 
 sub killall {
-	log::notice('killall !');
+	log::notice('killall ! ('.scalar @runs.' jobs running)');
 	joq::job::stop( $jobs{$_} ) foreach( @runs );
 	my $count = $cfg{termtimeout} * 10;
 	sleep 0.1 while( $count-- && grep { joq::job::running( $jobs{$_} ) } @runs );
