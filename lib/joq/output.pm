@@ -103,8 +103,8 @@ sub orderkeys {
 my %fmtab = (
 	lastend   => sub { joq::job::e2date(shift) },
 	laststart => sub { joq::job::e2date(shift) },
-	repeat    => sub { shift().'s' },
-	delay     => sub { shift().'s' },
+	repeat    => sub { shift },
+	delay     => sub { shift },
 );
 
 sub fmt {
