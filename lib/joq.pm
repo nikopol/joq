@@ -6,7 +6,6 @@ use strict;
 use Socket;
 use AnyEvent;
 use AnyEvent::Socket;
-use Try::Tiny;
 use Time::HiRes qw( sleep );
 use Encode;
 
@@ -23,7 +22,7 @@ use constant {
 	SHELLOKNP   => 2,
 };
 
-our $VERSION = '0.0.18';
+our $VERSION = '0.0.19';
 
 our %cfg = (
 	server    => 'localhost:1970',
@@ -71,12 +70,11 @@ sub load {
 	$file = $path.$file if $path && $file !~ m|^/| && -f $path.$file;
 	if( $file ) {
 		my $f = length($file)>768 ? substr($file,0,768)."... [".length($file)." bytes]" : $file;
-		try {
+		eval {
 			log::info("read/parse $f");
 			$data = parsefile( $file );
-		} catch {
-			log::error("read/parse $f : $_");
 		};
+		log::error("read/parse $f : $@") if $@;
 	}
 	$data;
 }
@@ -150,7 +148,7 @@ sub backup {
 
 sub save {
 	my $fn = shift;
-	try {
+	eval {
 		my $s = {
 			%cfg,
 			%joq::queue::cfg,
@@ -170,12 +168,13 @@ sub save {
 			remotes => [ joq::remote::find('all') ],
 		};
 		delete $s->{$_} for qw(backup);
-		writefile( $fn, $s, 'json' );
+		writefile( $fn, $s, 'yaml' );
 		log::info('state saved in '.$fn);
-	} catch {
-		log::error('error saving '.$fn.' : '.$_);
-		undef $fn;
 	};
+	if( $@ ) {
+		log::error('error saving '.$fn.' : '.$@);
+		undef $fn;
+	}
 	$fn;
 }
 

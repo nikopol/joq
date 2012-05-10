@@ -3,8 +3,6 @@ package joq::remote;
 use warnings;
 use strict;
 
-use Try::Tiny;
-
 use joq::logger;
 use joq::client;
 
@@ -98,7 +96,7 @@ sub exec {
 	my $nb = 0;
 	foreach( @$list ) {
 		if( my $s = $joqs{$_} ) {
-			try {
+			eval {
 				log::debug("sending $cmd", $s->{logn}, $s->{pid});
 				$s->{log} = joq::client->new(
 					host=>$s->{host},
@@ -111,9 +109,9 @@ sub exec {
 					syswrite $fh, $s->{logn}.': '.$_."\n" if $fh;
 				}
 				$nb++;
-			} catch {
-				log::error("error sending command to $_", $s->{logn}, $s->{pid});
 			};
+			log::error("error sending command to $_ : $@", $s->{logn}, $s->{pid})
+				if $@;
 		} else {
 			log::error("unable to send cmd to $_, server not found")
 		}

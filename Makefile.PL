@@ -8,7 +8,6 @@ requires 'EV';
 requires 'JSON::XS';
 requires 'YAML::XS';
 requires 'DateTime';
-requires 'Try::Tiny';
 requires 'Term::ANSIColor','3.0';
 requires 'Time::HiRes';
 requires 'Getopt::Long';

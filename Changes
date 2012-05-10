@@ -1,5 +1,10 @@
 revision history for joq
 
+0.0.19
+    - delay display fix
+    - utf8 support
+    - last duration stored
+
 0.0.18 2010-05-09
 	- soft stop
 	- job's timeout

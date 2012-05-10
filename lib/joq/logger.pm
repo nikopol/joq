@@ -5,7 +5,6 @@ use warnings;
 
 use DateTime;
 use Term::ANSIColor '3.0';
-use Try::Tiny;
 
 use constant {
 	LOGNONE   => 0,
@@ -118,13 +117,12 @@ sub addout {
 	rmout( $name );
 	my $own = 0;
 	unless( $handle ) {
-		try {
+		eval {
 			my $fm = ( $name =~ /^\*[A-Z]+$/ ) ? '>&' : '>>:utf8';
 			open $handle, $fm, $name;
 			$own = 1;
-		} catch {
-			warning('unable to open '.$name);
 		};
+		warning('unable to open '.$name.' : '.$@) if $@;
 	}
 	return 0 unless $handle;
 	my $l = defined $level ? findlevel($level,LOGLEVELS,LOGINFO) : $loglevel;
@@ -137,7 +135,7 @@ sub addout {
 sub rmout {
 	my $name = shift;
 	return 0 unless exists $out{$name};
-	try { close $out{$name}->[0] if $out{$name}->[3]; };
+	eval { close $out{$name}->[0] if $out{$name}->[3]; };
 	delete $out{$name};
 	debug($name.' closed');
 	1;
