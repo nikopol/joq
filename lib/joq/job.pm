@@ -360,7 +360,10 @@ sub duration {
 	my $s = $job->{lastend} - $job->{laststart};
 	my $m = int($s / 60);
 	my $h = int($m / 60);
-	sprintf("%dh%02dm%02ds", $h, $m%60, $s%60)
+	$h ? sprintf("%dh%02dm%02ds", $h, $m%60, $s%60) :
+	$m ? sprintf("%dm%02ds", $h, $m%60, $s%60) :
+	$s.'s';
+
 }
 
 sub e2date {
@@ -395,7 +398,8 @@ sub finished {
 		waitpid $job->{pid}, 0;
 		$job->{exitcode} = $?;
 	}
-	my $l = $job->{fullname}.' finished in '.duration($job).' with exit code '.$job->{exitcode};
+	$job->{lastduration} = duration($job);
+	my $l = $job->{fullname}.' finished in '.$job->{lastduration}.' with exit code '.$job->{exitcode};
 	log::notice($l);
 	filog($job,$l);
 	$l = $job->{fullname}.' next start '.nextstart( $job );
