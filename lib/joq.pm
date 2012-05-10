@@ -829,8 +829,10 @@ EOINTRO
 									$arg = join ' ', @args;
 								}
 								if( my $sub = $tcp_commands{$cmd} ) {
-									$cmd = $sub->{alias} if $sub->{alias};
-									$sub = $tcp_commands{$cmd};
+									if( $sub->{alias} ) {
+										$cmd = $sub->{alias};
+										$sub = $tcp_commands{$cmd};
+									}
 									my @remotes;
 									if( @at ) {
 										map { s/^@// } @at;
