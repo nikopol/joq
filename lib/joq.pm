@@ -8,6 +8,7 @@ use AnyEvent;
 use AnyEvent::Socket;
 use Try::Tiny;
 use Time::HiRes qw( sleep );
+use Encode;
 
 use joq::file;
 use joq::logger;
@@ -42,7 +43,7 @@ sub init {
 	my $path;
 	if( $file ) {
 		$path = $1 if $file =~ m|^(.*/)[^/]+$|;
-		%arg = ( %{load($file)}, %arg );
+		%arg = ( %{load($file)||{}}, %arg );
 	}
 	#setup log
 	$arg{log} = {} unless exists $arg{log};
@@ -91,16 +92,16 @@ sub hmerge {
 }
 
 sub deepcopy {
-	my $h = shift;
-	return $h unless ref $h;
+	my( $h, $utf8 ) = @_;
+	return( $utf8 ? decode_utf8($h) : $h) unless ref($h);
 	if( ref($h) eq 'HASH' ) {
 		my $c = {};
-		$c->{$_} = deepcopy($h->{$_}) for keys %$h;
+		$c->{$_} = deepcopy($h->{$_},$utf8) for keys %$h;
 		return $c;
 	}
 	if( ref($h) eq 'ARRAY' ) {
 		my $c = [];
-		push @$c, deepcopy($_) for @$h;
+		push @$c, deepcopy($_,$utf8) for @$h;
 		return $c;
 	}
 	undef;
@@ -157,7 +158,7 @@ sub save {
 			log     => log::config(),
 			jobs    => [ 
 				map {
-					my $job = deepcopy $_;
+					my $job = deepcopy $_, 1;
 					for(qw[args fixeday lastout lasterr]){
 						delete $job->{$_} unless ref($job->{$_}) ne 'ARRAY' || @{$job->{$_}};
 					}
@@ -169,7 +170,7 @@ sub save {
 			remotes => [ joq::remote::find('all') ],
 		};
 		delete $s->{$_} for qw(backup);
-		writefile( $fn, $s, 'yaml' );
+		writefile( $fn, $s, 'json' );
 		log::info('state saved in '.$fn);
 	} catch {
 		log::error('error saving '.$fn.' : '.$_);

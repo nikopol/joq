@@ -5,6 +5,7 @@ use warnings;
 
 use YAML::XS;
 use JSON::XS;
+use Encode;
 
 use base 'Exporter';
 our @EXPORT = qw(readfile writefile parsefile);
@@ -23,7 +24,7 @@ sub readfile {
 
 sub parsefile {
 	my $fn  = shift || die('what file?');
-	my $buf = shift || ( -f $fn ) ? readfile( $fn ) : $fn;
+	my $buf = shift || ( -f $fn ) ? readfile( $fn, '<' ) : encode_utf8($fn);
 	( $buf =~ /^\s*[\{\[]/ ) ? decode_json( $buf ) : Load( $buf );
 }
 
@@ -31,11 +32,11 @@ sub writefile {
 	my $fn   = shift || die('what file?');
 	my $data = shift || '';
 	my $fmt  = shift;
-	if( ref($data) eq 'ARRAY' ) {
-		$data = join("\n", @$data);
-	} elsif( ref($data) eq 'HASH' ) {
+	if( ref($data) ) {
 		unless( $fmt ) { $fmt = ( $fn =~ /\.ya?ml$/i ) ? 'yaml' : 'json'; }
-		$data = ( $fmt eq 'yaml' ) ? Dump( $data ) : encode_json( $data );
+		$data = ( $fmt eq 'yaml' )
+			? Dump( $data )
+			: encode_json( $data );
 	}
 	my %args = ( @_ );
 	my $mode = $args{mode} ? $args{mode} : $args{append} ? '>>' : '>';
