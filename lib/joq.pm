@@ -22,7 +22,7 @@ use constant {
 	SHELLOKNP   => 2,
 };
 
-our $VERSION = '0.0.19';
+our $VERSION = '0.0.20';
 
 our %cfg = (
 	server    => 'localhost:1970',

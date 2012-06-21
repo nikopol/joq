@@ -236,19 +236,22 @@ sub start {
 			filog( $job, 'joq', $job->{fullname}.' started' );
 		}
 
-		my( $wout, $werr );
+		my( $wout, $werr, $outbuf, $errbuf );
+		$outbuf = '';
 		$wout = AnyEvent->io(
 			fh   => $readout,
 			poll => 'r',
 			cb   => sub {
 				my $r = sysread $readout, my $buf, 4096;
-				if( $r ) {
-					my @lines = split /\n/, $buf;
+				$buf = $r > 0 ? $outbuf.$buf : $outbuf."\n";
+				if( my @lines = split /\n|\r\n/, $buf ) {
+					$outbuf = $buf =~ /\n$/ ? '' : pop @lines;
 					push @{$job->{lastout}}, @lines;
 					shift @{$job->{lastout}} while( @{$job->{lastout}} > STDOUTLINES );
 					filog($job,'OUT',@lines);
 					log::notice($_,undef,$job->{pid}) foreach @lines;
-				} elsif( $r <= 0 ) {
+				}
+				if( $r <= 0 ) {
 					log::debug(($r==0?'end of':'broken').' STDOUT pipe! '.$job->{fullname}.($werr?'':' finishing'));
 					finished( $job ) unless $werr;
 					close $readout;
@@ -256,18 +259,21 @@ sub start {
 				}
 			},
 		);
+		$errbuf = '';
 		$werr = AnyEvent->io(
 			fh   => $readerr,
 			poll => 'r',
 			cb   => sub {
 				my $r = sysread $readerr, my $buf, 4096;
-				if( $r ) {
-					my @lines = split /\n/, $buf;
+				$buf = $r > 0 ? $errbuf.$buf : $errbuf."\n";
+				if( my @lines = split /\n|\r\n/, $buf ) {
+					$errbuf = $buf =~ /\n$/ ? '' : pop @lines;
 					push @{$job->{lasterr}}, @lines;
 					shift @{$job->{lasterr}} while( @{$job->{lasterr}} > STDERRLINES );
 					filog($job,'ERR',@lines);
                     log::error($_,undef,$job->{pid}) foreach @lines;
-                } elsif( $r <= 0 ) {
+                }
+                if( $r <= 0 ) {
                     log::debug(($r==0?'end of':'broken').' STDERR pipe! '.$job->{fullname}.($wout?'':' finishing'));
                     finished( $job ) unless $wout;
 					close $readerr;
@@ -363,7 +369,6 @@ sub duration {
 	$h ? sprintf("%dh%02dm%02ds", $h, $m%60, $s%60) :
 	$m ? sprintf("%dm%02ds", $h, $m%60, $s%60) :
 	$s.'s';
-
 }
 
 sub e2date {
