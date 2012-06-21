@@ -1,12 +1,44 @@
 revision history for joq
 
-0.0.19
-    - delay display fix
-    - utf8 support
-    - last duration stored
+0.0.19 2012-05-10
+	- delay display fix
+	- utf8 support
+	- last duration stored
 
-0.0.18 2010-05-09
+0.0.18 2012-05-09
 	- soft stop
 	- job's timeout
 	- improved backup
 	- improved stop & restart
+
+0.0.15 2011-09-13
+	- fixes
+	- UT added (next start)
+
+0.0.12 2011-08-26
+	- fixes
+	- startup improved
+	- "rload" (remote load) command added
+
+0.0.09 2011-08-08
+	- job parameter "when.alone" and "extend" added
+	- log improvment
+	- option "-demo" added
+
+0.0.06 2011-06-28
+	- fixes
+	- duration config value more flexible
+	- command "close" added (alias of quit)
+	- command "pause" and "resume" added
+	- joq::client improvment
+
+0.0.03 2011-02-09
+	- fixes
+	- utf8 output
+	- ping command removed
+	- telnet server improved
+	- help improved
+
+0.0.01 2010-11-26
+    - hello world
+
