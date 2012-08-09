@@ -15,6 +15,11 @@ use constant {
 	DAYSEC      => 86400, #24*60*60
 	STDOUTLINES => 50,
 	STDERRLINES => 50,
+
+	ENDCHILD    => 1,
+	ENDSTDOUT   => 2,
+	ENDSTDERR   => 4,
+	ENDED       => 7,
 };
 
 my $gid = 0;
@@ -79,9 +84,9 @@ sub setup {
 		return undef;
 	}
 	$gid++;
-	$gid = 1 if $gid > 99999;
+	$gid = 1 if $gid > 999999;
 	$job->{id} = $gid;
-	$job->{order} = ($job->{priority} * 100000) - $job->{id};
+	$job->{order} = ($job->{priority} * 1000000) - $job->{id};
 	if( $job->{when} ) {
 		$job->{when}{start} = e2date( time + delay2sec($job->{when}{delay}) ) if $job->{when}{delay};
 		$job->{when}{dayofweek}  = delete $job->{when}{dow} if $job->{when}{dow};
@@ -193,7 +198,7 @@ sub setup {
 	}
 	$job->{when}{start} = calcnextstart( $job ) unless $job->{when}{start};
 	$job->{fullname} = 'job#'.$job->{id}.($job->{name}?' ['.$job->{name}.']':'');
-	log::notice($job->{fullname}.' of type '.($job->{code}?'code':$job->{class}?'class':'shell').' gonna start '.nextstart($job));
+	log::debug($job->{fullname}.' of type '.($job->{code}?'code':$job->{class}?'class':'shell').' gonna start '.nextstart($job));
 	$job
 }
 
@@ -206,6 +211,7 @@ sub start {
 	$job->{lastout} = [];
 	$job->{lasterr} = [];
 	$job->{exitcode} = undef;
+	delete $job->{ending};
 
 	pipe my $readout, my $writout;
 	pipe my $readerr, my $writerr;
@@ -220,16 +226,6 @@ sub start {
 		$job->{runcount}++;
 		$job->{fullname} .= ' pid='.$pid;
 
-		#my $wchild; $wchild = AnyEvent->child(
-		#	pid => $pid, 
-		#	cb  => sub {
-		#		my( $pid, $status ) = @_;
-		#		log::debug('SIGCHLD! '.$job->{fullname}.' finishing with '.$status);
-		#		finish( $job );
-		#		undef $wchild;
-		#	}
-		#);
-	
 		if( $job->{logfile} ) {
 			open( $job->{logfh}, '>>', $job->{logfile} )
 				or log::error('unable to open '.$job->{fullname}.' logfile '.$job->{logfile});
@@ -252,8 +248,8 @@ sub start {
 					log::notice($_,undef,$job->{pid}) foreach @lines;
 				}
 				if( $r <= 0 ) {
-					log::debug(($r==0?'end of':'broken').' STDOUT pipe! '.$job->{fullname}.($werr?'':' finishing'));
-					finished( $job ) unless $werr;
+					log::core(($r==0?'end of':'broken').' STDOUT pipe! '.$job->{fullname});
+					ending( $job => ENDSTDOUT );
 					close $readout;
 					undef $wout;
 				}
@@ -274,8 +270,8 @@ sub start {
                     log::error($_,undef,$job->{pid}) foreach @lines;
                 }
                 if( $r <= 0 ) {
-                    log::debug(($r==0?'end of':'broken').' STDERR pipe! '.$job->{fullname}.($wout?'':' finishing'));
-                    finished( $job ) unless $wout;
+                    log::core(($r==0?'end of':'broken').' STDERR pipe! '.$job->{fullname});
+                    ending( $job => ENDSTDERR );
 					close $readerr;
 					undef $werr;
                 }
@@ -284,7 +280,7 @@ sub start {
 		$job->{laststart} = time;
 		$job->{lastend} = undef;
 		$job->{lastimeout} = time + delay2sec($job->{timeout}) if $job->{timeout};
-		log::notice($job->{fullname}.' started');
+		log::info($job->{fullname}.' started');
 		return $job->{pid};
 	}
 
@@ -368,7 +364,7 @@ sub duration {
 	my $h = int($m / 60);
 	$h ? sprintf("%dh%02dm%02ds", $h, $m%60, $s%60) :
 	$m ? sprintf("%dm%02ds", $h, $m%60, $s%60) :
-	$s.'s';
+	$s.'s'
 }
 
 sub e2date {
@@ -390,30 +386,34 @@ sub delay2sec {
 	$s
 }
 
+sub ending {
+	my( $job, $event, $status ) = @_;
+	$job->{exitcode} = $status if defined $status;
+	$job->{ending} |= $event;
+	log::core("job $job->{pid} ending=$job->{ending}");
+	finished($job) if $job->{ending} == ENDED;
+	$job->{pid}
+}
+
 sub finished {
-	my( $job, $exitcode ) = @_;
+	my( $job ) = @_;
 	return 0 unless $job->{pid};
 	$job->{when}{count}-- if defined $job->{when}{count};
 	$job->{lastend} = time;
 	$job->{afterdone} = {};
-	$job->{when}{start} = calcnextstart( $job );
-	if( $exitcode ) {
-		$job->{exitcode} = $exitcode;
-	} else {
-		waitpid $job->{pid}, 0;
-		$job->{exitcode} = $?;
-	}
+	$job->{when}{start} = calcnextstart($job);
 	$job->{lastduration} = duration($job);
-	my $l = $job->{fullname}.' finished in '.$job->{lastduration}.' with exit code '.$job->{exitcode};
-	log::notice($l);
-	filog($job,$l);
-	$l = $job->{fullname}.' next start '.nextstart( $job );
+	my $l = $job->{fullname}.' finished in '.$job->{lastduration}.' with exit code '.(defined $job->{exitcode}?$job->{exitcode}:'?');
 	log::info($l);
+	filog($job,$l);
+	$l = $job->{fullname}.' next start '.nextstart($job);
+	log::debug($l);
 	if( $job->{logfh} ) {
 		filog($job,'joq',$l,'----------------------------');
 		close delete $job->{logfh};
 	}
 	$job->{pid} = 0;
+	delete $job->{ending};
 	$job->{fullname} =~ s/ pid=\d*//;
 	kill 12, $$; #SIGUSR2 => joq::Queue::poll
 	1
@@ -421,18 +421,18 @@ sub finished {
 
 sub running {
 	my $job = shift;
-	return 0 unless $job->{pid};
-	my $r = waitpid( $job->{pid}, WNOHANG );
-	my $c = $? >> 8;
-	if( $r > 0 ) {
-		#terminated
-		log::debug($job->{fullname}.' pid terminated');
-		finished( $job, $c );
-	} elsif( $r == -1 ) {
-		#not exists ?!
-		log::debug($job->{fullname}.' pid don\'t exists');
-		finished( $job, $c );
-	}
+	# return 0 unless $job->{pid};
+	# my $r = waitpid( $job->{pid}, WNOHANG );
+	# my $c = $?;
+	# if( $r > 0 ) {
+	# 	#terminated
+	# 	log::debug($job->{fullname}.' pid terminated ('.$c.')');
+	# 	finished( $job, $c );
+	# } elsif( $r == -1 ) {
+	# 	#not exists ?!
+	# 	log::debug($job->{fullname}.' pid don\'t exists ('.$c.')');
+	# 	finished( $job );
+	# }
 	$job->{pid}
 }
 
@@ -448,7 +448,7 @@ sub stop {
 		log::debug($job->{fullname}.' did not receive term signal');
 		return 0;
 	}
-	log::debug($job->{fullname}.' send term signal');
+	log::debug($job->{fullname}.' receive term signal');
 	1
 }
 
@@ -459,7 +459,7 @@ sub kill {
 		log::debug($job->{fullname}.' did not receive kill signal');
 		return 0;
 	}
-	log::debug($job->{fullname}.' send kill signal');
+	log::debug($job->{fullname}.' receive kill signal');
 	1
 }
 
@@ -518,14 +518,14 @@ sub startable {
 	return 0 if dead( $job );
 	if( defined $job->{when}{start} ) {
 		my $d = e2date( time );
-		return 0 if(($d cmp $job->{when}{start}) < 0);
+		return 0 if ($d cmp $job->{when}{start}) < 0;
 	}
 	if( $job->{when}{if} ) {
 		unless( eval($job->{when}{if}) ) {
 			log::debug $job->{fullname}.' dont pass its "if" condition';
 			return 0;
 		}
-		log::debug  $job->{fullname}.' validate its "if" condition';
+		log::debug $job->{fullname}.' validate its "if" condition';
 	}
 	if( $job->{when}{after} ) {
 		my $ok = 0;

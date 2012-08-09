@@ -2,6 +2,7 @@ package joq;
 
 use warnings;
 use strict;
+use 5.010;
 
 use Socket;
 use AnyEvent;
@@ -22,13 +23,13 @@ use constant {
 	SHELLOKNP   => 2,
 };
 
-our $VERSION = '0.0.20';
+our $VERSION = '0.0.21';
 
 our %cfg = (
 	server    => 'localhost:1970',
 	oneshot   => 0,
 	backup    => 0,
-	polling   => 10,
+	polling   => 15,
 );
 
 my $started  = 0;
@@ -46,7 +47,7 @@ sub init {
 	}
 	#setup log
 	$arg{log} = {} unless exists $arg{log};
-	for(qw(level file mode)) {
+	for(qw(level file console)) {
 		$arg{log}->{$_} = delete $arg{"log_$_"} if exists $arg{"log_$_"};
 	}
 	log::setup( %{$arg{log}} );
@@ -110,6 +111,7 @@ sub loadjobs {
 	$list = [ $list ] unless ref($list) eq 'ARRAY';
 	$path = $path unless defined $path;
 	my @jobs;
+	log::info('loading '.scalar @$list.' jobs');
 	for my $j ( @$list ) {
 		if( ref($j) eq 'HASH' ) {
 			if( exists $j->{extend} ) {
@@ -209,16 +211,25 @@ sub stopevents {
 sub setpoll {
 	my $sec = shift || $cfg{polling};
 	delete $watch{poll} if $watch{poll};
+	my $lastpollend = 0;
 	$watch{poll} = AnyEvent->timer(
 		after    => 0,
 		interval => $sec,
-		cb       => sub { joq::poll() },
+		cb       => sub {
+			if( (time - $lastpollend) > 0 ){
+				joq::poll();
+				$lastpollend = time;
+			} else {
+				log::warn('poll skipt you should increase the polling delay');
+			}
+		},
 	);
 	log::info('polling set to '.$sec.'s');
 }
 
 sub poll {
 	my( $queued, $running, $event ) = joq::queue::poll( $softstop );
+log::core("poll queued=$queued running=$running event=$event");
 	$w->send('oneshot') if !$queued && $cfg{oneshot};
 	$w->send('soft stop') if !$running && $softstop;
 }
@@ -231,16 +242,14 @@ sub run {
 	my $start = time;
 	$w = AnyEvent->condvar;
 
-	setpoll() unless $watch{poll};
-
 	$watch{sigint} = AnyEvent->signal(
 		signal => 'INT',
 		cb     => sub {
 			if( $softstop ) {
-				log::debug('SIGINT! hard stop');
+				log::warn('SIGINT! hard stop');
 				$w->send( 'hard stop' );
 			} else {
-				log::debug('SIGINT! soft stop - slap me again to hard stop');
+				log::warn('SIGINT! soft stop - slap me again to hard stop');
 				$softstop = 1;
 				joq::poll();
 			}
@@ -250,7 +259,7 @@ sub run {
 	$watch{sigusr1} = AnyEvent->signal(
 		signal  => 'USR1',
 		cb      => sub {
-			log::debug('SIGUSR1! log rotate');
+			log::core('SIGUSR1! log rotate');
 			log::rotate;
 		}
 	);
@@ -258,10 +267,24 @@ sub run {
 	$watch{sigusr2} = AnyEvent->signal(
 		signal  => 'USR2',
 		cb      => sub {
-			log::debug('SIGUSR2! polling');
+			log::core('SIGUSR2! polling');
 			joq::poll;
 		}
 	);
+
+	$watch{child} = AnyEvent->child(
+		pid => 0, #$pid, 
+		cb  => sub {
+			my( $pid, $status ) = @_;
+			if( my $job = joq::queue::pidjob( $pid ) ) {
+				log::core('SIGCHLD! '.$pid.' finishing with '.$status);
+				joq::job::ending( $job => joq::job::ENDCHILD, $status ) if $job;
+			} else {
+				log::core('SIGCHLD! '.$pid.' not found?! finishing with '.$status);
+			}
+		}
+	);
+
 	my %tcp_commands;
  	if( $cfg{server} && $cfg{server} !~ /^(?:off|false|disabled?)$/i ) {
 
@@ -333,7 +356,7 @@ EOTXT
 						my $job = addjob( \%jobargs );
 						if( $job ) {
 							$out->send($job->{fullname}.' queued');
-							joq::poll();
+							joq::poll;
 							backup;
 						} else {
 							$out->error('adding job');
@@ -872,7 +895,7 @@ EOINTRO
 	log::debug('event loop, impl='.AnyEvent::detect);
 	backup;
 	log::notice('JoQ started');
-	joq::poll;
+	setpoll() unless $watch{poll};
 	my $r = $w->recv;
 	backup;
 	joq::queue::killall;

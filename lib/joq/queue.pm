@@ -2,6 +2,7 @@ package joq::queue;
 
 use strict;
 use warnings;
+use 5.010;
 
 use Time::HiRes qw(sleep);
 use joq::logger;
@@ -13,6 +14,7 @@ my @readys;
 my @history;
 my $polling;
 my $runcount = 0;
+my $timeoutcount = 0;
 my $paused = 0;
 my $alone = 0;
 
@@ -52,8 +54,17 @@ sub job {
 	undef;
 }
 
+sub pidjob {
+	my $pid = shift;
+	my( $job ) =
+		grep { $_->{pid} == $pid }
+		map { $jobs{$_} }
+		@runs;
+	$job
+}
+
 sub jobids {
-	keys %jobs;
+	keys %jobs
 }
 
 sub jobs {
@@ -97,7 +108,7 @@ sub addjob {
 	if( $job ) {
 		if( !exists $jobs{$job->{id}} ) {
 			$jobs{$job->{id}} = $job;
-			log::notice($job->{fullname}.' queued');
+			log::debug($job->{fullname}.' queued');
 		} else {
 			log::error($job->{fullname}.' already queued, ignored');
 		}
@@ -113,10 +124,10 @@ sub stopjob {
 	my $count = $cfg{termtimeout} * 10;
 	sleep 0.1 while( $count-- && joq::job::running( $job ) );
 	if( joq::job::running( $job ) ) {
+		log::info('kill '.$job->{fullname}.' (still running after stop)');
 		joq::job::kill( $job );
-		log::notice('kill '.$job->{fullname}.' (still running after stop)');
 	} else {
-		log::notice($job->{fullname}.' softly stopped');
+		log::info($job->{fullname}.' softly stopped');
 	}
 	$alone = 0 if $job->{when}{alone} && !joq::job::running( $job );
 	1;
@@ -132,7 +143,7 @@ sub deljob {
 }
 
 sub killall {
-	log::notice('killall ! ('.scalar @runs.' jobs running)');
+	log::core('killall ! ('.scalar @runs.' jobs running)');
 	joq::job::stop( $jobs{$_} ) foreach( @runs );
 	my $count = $cfg{termtimeout} * 10;
 	sleep 0.1 while( $count-- && grep { joq::job::running( $jobs{$_} ) } @runs );
@@ -170,15 +181,16 @@ sub resume {
 }
 
 sub status {
-	{
-		maxfork     => $cfg{maxfork},
-		status      => $paused?'paused':'running',
-		jobs_queued => scalar keys %jobs,
-		jobs_dead   => scalar @history,
-		jobs_running=> scalar @runs,
-		jobs_run    => $runcount,
-		jobs_ready  => scalar @readys,
-		flag_alone  => $alone,
+	+{
+		maxfork      => $cfg{maxfork},
+		status       => $paused?'paused':'running',
+		jobs_queued  => scalar keys %jobs,
+		jobs_dead    => scalar @history,
+		jobs_running => scalar @runs,
+		jobs_run     => $runcount,
+		jobs_ready   => scalar @readys,
+		jobs_timeout => $timeoutcount,
+		flag_alone   => $alone,
 	};
 }
 
@@ -186,12 +198,11 @@ sub poll {
 	return undef if $polling;
 	my $softstop = shift;
 	$polling = 1;
+	my %finished;
 	my $nbevent = 0;
-	my @jobids = keys %jobs;
-	if( @jobids ) {
+	if( @runs ) {
 		log::debug('polling with '.(keys %jobs).' jobs queued');
 		#check 'running' jobs
-		my %finished;
 		my @alive;
 		foreach my $jid ( @runs ) {
 			my $job = $jobs{$jid};
@@ -201,6 +212,8 @@ sub poll {
 				if(joq::job::timeout($job)){
 					log::warning($job->{fullname}.' timeout');
 					stopjob($job);
+					$job->{timeoutcount}++;
+					$timeoutcount++;
 					undef $run;
 				} else {
 					push @alive, $jid;
@@ -210,60 +223,69 @@ sub poll {
 				$finished{$job->{name}} = $jid if exists $job->{name};
 				$runcount++;
 				if( joq::job::dead($job) ) {
-					log::info($job->{fullname}.' marked as finished and dead');
+					log::debug($job->{fullname}.' marked as finished and dead');
 					historize( delete $jobs{$jid} );
 				} else {
-					log::info($job->{fullname}.' marked as finished and pending');
+					log::debug($job->{fullname}.' marked as finished and pending');
 				}
 				$alone = 0;
 				$nbevent++;
 			}
 		}
 		@runs = @alive;
-		unless( $softstop ){
-			#check 'runnable' jobs, ordered by priority
-			@jobids = sort { $jobs{$b}->{order} <=> $jobs{$a}->{order} } keys %jobs;
-			foreach my $jid ( @jobids ) {
-				unless( (grep { $_ == $jid } @readys) || (grep { $_ == $jid } @runs) ) {
-					my $job = $jobs{$jid};
-					if( joq::job::startable( $job, \%finished ) ) {
-						log::info($job->{fullname}.' ready to start');
-						push @readys, $jid;
-					}
-				}
+	}
+	my @jobids = keys %jobs;
+	if( @jobids && !$softstop ) {
+		#check startable jobs, ordered by priority
+		my @pending =
+			sort { $jobs{$b}->{order} <=> $jobs{$a}->{order} }
+			grep { !($_ ~~ @runs) }
+			grep { !($_ ~~ @readys) }
+			@jobids;
+		my $nbrdy = 0;
+		foreach my $jid ( @pending ) {
+			my $job = $jobs{$jid};
+			if( joq::job::startable( $job, \%finished ) ) {
+				log::debug($job->{fullname}.' ready to start');
+				push @readys, $jid;
+				$nbrdy++;
 			}
-			#runs jobs if fork slot available
-			unless( $paused || $alone ) {
-				my @stillreadys;
-				while( my $jid = shift @readys ) {
-					if( @runs < $cfg{maxfork} ) {
-						my $job = $jobs{$jid};
-						my $wal = $job->{when}{alone};
-						if( $wal && scalar @runs ) {
-							push @stillreadys, $jid;
-						} elsif(joq::job::start( $job )) {
-							push @runs, $jid;
-							$nbevent++;
-							if( $wal ) {
-								log::info($job->{fullname}.' activates alone mode');
-								$alone = 1;
-								push @stillreadys, @readys;
-								last;
-							}
-						} else {
-							log::error('error starting '.$job->{fullname}.', unqueued');
-						}
-					} else {
-						push @stillreadys, $jid;
-					}
-				}
-				@readys = @stillreadys;
-			}
-			log::debug('polling finish with '.scalar @runs.'/'.$cfg{maxfork}.' jobs running, '.scalar @readys.' ready'.($paused?' (paused)':''));
-		} else {
-			log::debug('polling finish with '.scalar @runs.' jobs running, soft stop mode');
-
 		}
+		#runs jobs if fork slot available
+		unless( $paused || $alone || @runs >= $cfg{maxfork} ) {
+			my @stillreadys;
+			while( my $jid = shift @readys ) {
+				my $job = $jobs{$jid};
+				my $wal = $job->{when}{alone};
+				if( $wal && scalar @runs ) {
+					push @stillreadys, $jid;
+				} elsif(joq::job::start( $job )) {
+					push @runs, $jid;
+					$nbevent++;
+					if( $wal ) {
+						log::info($job->{fullname}.' activates alone mode');
+						$alone = 1;
+						push @stillreadys, @readys;
+						last;
+					}
+					if( @runs >= $cfg{maxfork} ) {
+						push @stillreadys, @readys;
+						last;
+					}
+				} else {
+					log::error('error starting '.$job->{fullname}.', unqueued');
+				}
+			}
+			@readys = @stillreadys;
+		}
+		log::debug(
+			'polling done.'.
+			' running='.scalar @runs.'/'.$cfg{maxfork}.
+			' ready='.scalar @readys.'/'.(scalar @jobids - scalar @runs).
+			($paused?' (paused)':'').
+			($alone?' (alone mode)':'').
+			($softstop?' (soft stop)':'')
+		) if @jobids;
 	}
 	$polling = 0;
 	( scalar @jobids, scalar @runs, $nbevent );

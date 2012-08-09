@@ -13,7 +13,8 @@ use constant {
 	LOGNOTICE => 3,
 	LOGINFO   => 4,
 	LOGDEBUG  => 5,
-	LOGLEVELS => [ qw/NONE ERROR WARN NOTICE INFO DEBUG/ ],
+	LOGCORE   => 6,
+	LOGLEVELS => [ qw/NONE ERROR WARN NOTICE INFO DEBUG CORE/ ],
 	LOGCOLORS => [
 		'',               #none
 		'red',            #error
@@ -21,13 +22,14 @@ use constant {
 		'yellow',         #notice
 		'',               #info
 		'bright_black',   #debug
+		'blue',           #core
 	],
 	PIDCOLORS => [ 
-		'blue', 'bright_magenta', 'green',
+		'bright_magenta', 'green',
 		'bright_yellow', 'bright_blue', 'bright_magenta', 
-		'bright_green',
+		'bright_green'
 	],
-	NBPIDCOLORS => 7,
+	NBPIDCOLORS => 6,
 	MODES => [ qw/SHORT LONG COLOR/ ],
 	SHORT => 0,
 	LONG  => 1,
@@ -36,9 +38,6 @@ use constant {
 
 our $TZ      = $ENV{TZ} || 'Europe/Paris';
 my $loglevel = LOGINFO;
-my $stdout   = 'colored';
-my $stdouth;
-my $colored  = 1;
 my %pids;
 my %out; #name=[handle,mode,level,own]
 my $rotcount = 0;
@@ -53,8 +52,8 @@ sub setup {
 	$TZ = $arg{timezone} if $arg{timezone};
 	level( $arg{level} ) if $arg{level};
 	#at least output to stdout
-	$arg{mode} = 'color' unless $arg{mode} || $arg{file};
-	addout( '*STDOUT', $arg{mode} ) if $arg{mode};
+	$arg{console} = 'color' unless $arg{console} || $arg{file};
+	addout( '*STDOUT', $arg{console} ) if $arg{console};
 	addout( $arg{file}, LONG ) if $arg{file};
 	1;
 }
@@ -142,6 +141,7 @@ sub rmout {
 }
 
 #func(msg[,from[,pid]])
+sub core    { LOG( shift, shift || (caller())[0], LOGCORE, shift); }
 sub debug   { LOG( shift, shift || (caller())[0], LOGDEBUG, shift); }
 sub error   { LOG( shift, shift || (caller())[0], LOGERROR, shift); }
 sub warn    { LOG( shift, shift || (caller())[0], LOGWARN, shift); }

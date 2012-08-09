@@ -1,15 +1,24 @@
 revision history for joq
 
+0.0.21 2012-08-09 *rocco*
+    - big queue (~30k jobs) optimization
+    - fix for returned status
+    - better handling of ending job's output
+    - log core level added
+    - many log output re-leveled for lisibility
+
 0.0.19 2012-05-10
 	- delay display fix
 	- utf8 support
 	- last duration stored
 
 0.0.18 2012-05-09
-	- soft stop
+	- soft/hard stop
 	- job's timeout
 	- improved backup
-	- improved stop & restart
+	- backup option becomes by default
+	  and its automatically loaded at start
+	  if no jobs are provided
 
 0.0.15 2011-09-13
 	- fixes
@@ -41,4 +50,3 @@ revision history for joq
 
 0.0.01 2010-11-26
     - hello world
-
