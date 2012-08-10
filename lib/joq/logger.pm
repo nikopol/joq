@@ -18,7 +18,7 @@ use constant {
 	LOGCOLORS => [
 		'',               #none
 		'red',            #error
-		'bright_magenta', #warning
+		'red',            #warning
 		'yellow',         #notice
 		'',               #info
 		'bright_black',   #debug
@@ -180,6 +180,7 @@ sub LOG {
 		$l = $loglevel unless defined $l;
 		syswrite $h, $fmt[$m] if $level <= $l;
 	}
+	$@ = $msg if $level == LOGERROR;
 	1;
 }
 

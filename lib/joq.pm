@@ -8,7 +8,6 @@ use Socket;
 use AnyEvent;
 use AnyEvent::Socket;
 use Time::HiRes qw( sleep );
-use Encode;
 
 use joq::file;
 use joq::logger;
@@ -16,6 +15,7 @@ use joq::queue;
 use joq::job;
 use joq::remote;
 use joq::output;
+use joq::tools;
 
 use constant {
 	SHELLCLOSE  => 0,
@@ -23,7 +23,7 @@ use constant {
 	SHELLOKNP   => 2,
 };
 
-our $VERSION = '0.0.21';
+our $VERSION = '0.0.22';
 
 our %cfg = (
 	server    => 'localhost:1970',
@@ -78,32 +78,6 @@ sub load {
 		log::error("read/parse $f : $@") if $@;
 	}
 	$data;
-}
-
-sub hmerge {
-	my( $a, $b ) = @_;
-	for my $k ( keys %$b ) {
-		$a->{$k} = ( !exists $a->{$k} || ref($a->{$k}) ne 'HASH' ) 
-			? $b->{$k}
-			: hmerge( $a->{$k}, $b->{$k} );
-	}
-	$a;
-}
-
-sub deepcopy {
-	my( $h, $utf8 ) = @_;
-	return( $utf8 ? decode_utf8($h) : $h) unless ref($h);
-	if( ref($h) eq 'HASH' ) {
-		my $c = {};
-		$c->{$_} = deepcopy($h->{$_},$utf8) for keys %$h;
-		return $c;
-	}
-	if( ref($h) eq 'ARRAY' ) {
-		my $c = [];
-		push @$c, deepcopy($_,$utf8) for @$h;
-		return $c;
-	}
-	undef;
 }
 
 sub loadjobs {
@@ -171,7 +145,7 @@ sub save {
 		};
 		delete $s->{$_} for qw(backup);
 		writefile( $fn, $s, 'yaml' );
-		log::info('state saved in '.$fn);
+		log::debug('state saved in '.$fn);
 	};
 	if( $@ ) {
 		log::error('error saving '.$fn.' : '.$@);
@@ -276,11 +250,11 @@ sub run {
 		pid => 0, #$pid, 
 		cb  => sub {
 			my( $pid, $status ) = @_;
-			if( my $job = joq::queue::pidjob( $pid ) ) {
-				log::core('SIGCHLD! '.$pid.' finishing with '.$status);
-				joq::job::ending( $job => joq::job::ENDCHILD, $status ) if $job;
+			if( my $job = joq::queue::jobbypid( $pid ) ) {
+				log::core('SIGCHLD! '.$pid.' return '.$status);
+				joq::job::ending( $job => joq::job::ENDCHILD, $status );
 			} else {
-				log::core('SIGCHLD! '.$pid.' not found?! finishing with '.$status);
+				log::core('SIGCHLD! '.$pid.' not found?! return '.$status);
 			}
 		}
 	);
@@ -294,7 +268,7 @@ sub run {
 			addjob => {
 				txt => <<EOTXT
 add a job in queue
-    options:   name=jobname  : set job's nickname
+    options:   name=jobname  : set job's nickname (must be unique)
               delay=seconds  : time to wait from job creation before start
              repeat=seconds  : time between runs (next_run=last_start+repeat)
               count=count    : how many times you wanna run this job 
@@ -348,7 +322,7 @@ EOTXT
 							$name =~ s/[^\w]+.*$//g;
 							if( joq::queue::job($name) ) {
 								my $n = 2;
-								$n++ while( joq::queue::job($name.'#'.$n) );
+								$n++ while( joq::queue::jobbyname($name.'#'.$n) );
 								$name = $name.'#'.$n;
 							}
 							$jobargs{name} = $name;
@@ -359,7 +333,7 @@ EOTXT
 							joq::poll;
 							backup;
 						} else {
-							$out->error('adding job');
+							$out->error($@);
 						}
 					} else {
 						$out->error('specify a script or a command');
@@ -698,9 +672,10 @@ EOTXT
 								$job = { %$job };
 								delete $job->{logfh};
 								$out->dump($job,'job');
-							} else {
-								my $deads = joq::queue::deadjobs( $arg );
+							} elsif( my $deads = [ joq::queue::deadjobs( $arg ) ] ) {
 								$out->dump($deads, 'history') if $deads;
+							} else {
+								$out->error('job not found');
 							}
 						}
 					} else {
@@ -793,7 +768,7 @@ EOTXT
 		tcp_server( $ip, $port, sub {
 			my($fh, $host, $port) = @_;
 			my $cnxid = "$host:$port";
-			log::info("connection opened from $cnxid");
+			log::debug("connection opened from $cnxid");
 			syswrite $fh, <<EOINTRO
 
  ██████████   zogzog to joq v$VERSION
@@ -871,7 +846,7 @@ EOINTRO
 									}
 									my $dbg = "$cmd($arg)";
 									$dbg = substr($dbg,0,253).'...' if length($dbg)>256;
-									log::info("execute $dbg [".length($arg)." bytes] from $cnxid");
+									log::debug("execute $dbg [".length($arg)." bytes] from $cnxid");
 									joq::remote::exec("$cmd $arg", \@remotes, $fh) 
 										if @remotes && $cmd =~ /load|list|show|add|del|stop|killall|shutdown/;
 									$cr = $sub->{bin}($out,$arg,$cnxid) unless @at;
@@ -885,14 +860,14 @@ EOINTRO
 							$buflen = 0;
 						 }
 					}
-					log::info("connection closed from $cnxid") unless $io;
+					log::debug("connection closed from $cnxid") unless $io;
 				},
 			);
 		});
-		log::info('server started on '.$ip.':'.$port);
+		log::info('telnet server started on '.$ip.':'.$port);
 	}
 
-	log::debug('event loop, impl='.AnyEvent::detect);
+	log::core('event loop, impl='.AnyEvent::detect);
 	backup;
 	log::notice('JoQ started');
 	setpoll() unless $watch{poll};

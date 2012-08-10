@@ -54,13 +54,23 @@ sub job {
 	undef;
 }
 
-sub pidjob {
+sub jobbypid {
 	my $pid = shift;
 	my( $job ) =
 		grep { $_->{pid} == $pid }
 		map { $jobs{$_} }
 		@runs;
 	$job
+}
+
+sub jobbyname {
+	if( my $name = shift ) {
+		my( $job ) =
+			grep { $_->{name} && $_->{name} eq $name }
+			values %jobs;
+		return $job;
+	}
+	undef;
 }
 
 sub jobids {
@@ -103,14 +113,15 @@ sub addjobs {
 
 sub addjob {
 	my $jobarg = shift;
-	return 0 unless $jobarg;
+	return undef unless $jobarg;
 	my $job = joq::job::setup( $jobarg );
 	if( $job ) {
-		if( !exists $jobs{$job->{id}} ) {
+		if( !exists $jobs{$job->{id}} && !jobbyname($job->{name}) ) {
 			$jobs{$job->{id}} = $job;
 			log::debug($job->{fullname}.' queued');
 		} else {
 			log::error($job->{fullname}.' already queued, ignored');
+			$job = undef;
 		}
 	}
 	$job;
@@ -152,25 +163,25 @@ sub killall {
 	historize( delete $jobs{$_} ) foreach( @jobids );
 	@readys = ();
 	@runs = ();
-	scalar @jobids
+	scalar @jobids;
 }
 
 sub historize {
 	my $job = shift;
 	push @history, $job;
 	log::debug($job->{fullname}.' historized ('.histurn().')');
-	scalar @history
+	scalar @history;
 }
 
 sub histurn {
 	shift( @history ) while( $cfg{maxhistory} < @history );
-	scalar @history
+	scalar @history;
 }
 
 sub pause {
 	return 0 if $paused;
 	log::notice "queue paused";
-	$paused = 1
+	$paused = 1;
 }
 
 sub resume {

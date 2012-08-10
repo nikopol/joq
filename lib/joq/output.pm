@@ -3,6 +3,8 @@ package joq::output;
 use JSON::XS;
 use YAML::XS;
 
+use joq::tools;
+
 sub new {
 	my $class = shift;
 	my $self = {
@@ -152,11 +154,12 @@ sub list {
 }
 
 sub table {
-	my($self,$list,$order) = @_;
+	my($self,$obj,$order) = @_;
 	#calc width/columns
 	my %cols;
 	my @colkeys;
-	my $hmode = scalar @$list && ref($list->[0]) eq 'HASH';
+	my $hmode = scalar @$obj && ref($obj->[0]) eq 'HASH';
+	my $list = deepcopy $obj;
 	if( $hmode ) {
 		for my $row (@$list) {
 			for $cell ( keys %$row )  {

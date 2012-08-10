@@ -56,8 +56,6 @@ my $dftconf = {
 	polling     => 10,
 	termtimeout => 3,
 	maxfork     => 4,
-	backup      => 0,
-	remotes     => [],
 	maxhistory  => 32,
 	log         => {
 		level => 'INFO',
@@ -125,7 +123,7 @@ esac
 exit 0
 EOARCH
 		,1);
-		createfile( '/etc/conf.d/joq', 'joq_ARGS="-d -f /etc/joq.conf"' );
+		createfile( '/etc/conf.d/joq', 'joq_ARGS="-d -b=/etc/joq.conf"' );
 		createfile( '/etc/joq.conf', JSON::XS->new->utf8->pretty->encode($dftconf) );
 	},
 
@@ -134,13 +132,11 @@ EOARCH
 	},
 
 	debian_install => sub {
-# register mongodb
-# update-rc.d mongodb defaults 90 >/dev/null
-# # start mongodb
-# invoke-rc.d mongodb start
+		#todo
 	},
 
 	debian_remove => sub {
+		#todo
 	},
 );
 

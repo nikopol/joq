@@ -71,7 +71,7 @@ avalaible options:
  -l -log mode          : output to stdout color(default),long,short,none
  -ll -loglevel level   : error,warning,notice,info(default),debug
  -lf -logfile filename : output log to filename
- -s -server host:port  : set telnet/client server
+ -s -server host:port  : set telnet client server
                          disabled= -s off
                           default= -s localhost:1970
  -p -poll -polling s   : set polling to s seconds (default=10s)
@@ -141,8 +141,6 @@ EODEMO
 }
 
 my %o;
-
-
 $o{server}  = $server || 'localhost:1970';
 $o{polling} = $polling if $polling;
 $o{backup}  = $backup || './joq.conf';
