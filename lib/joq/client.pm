@@ -13,13 +13,14 @@ sub new {
 	my $class = shift;
 	my %o = @_;
 	my $self = {
-		host   => 'localhost',
-		port   => 1970,
-		mode   => 'perl',
+		host    => 'localhost',
+		port    => 1970,
+		mode    => 'perl',
+		timeout => 10,
 		%o,
-		sock   => undef,
-		error  => "",
-		log    => [],
+		sock    => undef,
+		error   => "",
+		log     => [],
 	};
 	if( $o{server} ) {
 		if( $o{server} =~ /^([^\:]+)\:(\d+)$/ ) {
@@ -69,7 +70,7 @@ sub read {
 	my $self = shift;
 	my $buf  = '';
 	$SIG{ALRM} = sub { die "read timeout\n"; };
-	alarm READTIMEOUT;
+	alarm $self->{timeout};
 	while( $buf !~ /\>$/ ) {
 		sysread( $self->{sock}, $buf, 262143, length($buf) ) || return $self->error('connection closed');
 	}
