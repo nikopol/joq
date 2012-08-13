@@ -1,9 +1,11 @@
 revision history for joq
 
-0.0.22 2012-08-10
+0.0.22 2012-08-13
     - name becomes unique
-    - fix table dump
     - timeout params added to client
+    - improve polling skipt
+    - fix table dump
+    - fix for 'error starting job'
 
 0.0.21 2012-08-09 *rocco*
     - big queue (~30k jobs) optimization

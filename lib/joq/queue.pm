@@ -18,6 +18,8 @@ my $timeoutcount = 0;
 my $paused = 0;
 my $alone = 0;
 
+our $pollend = 0;
+
 our %cfg = (
 	maxfork     => 4,  #max simultaneous running
 	maxhistory  => 16, #max done jobs kept
@@ -133,10 +135,11 @@ sub stopjob {
 	joq::job::stop( $job );
 	log::info('stop '.$job->{fullname});
 	my $count = $cfg{termtimeout} * 10;
-	sleep 0.1 while( $count-- && joq::job::running( $job ) );
-	if( joq::job::running( $job ) ) {
+	sleep 0.1 while( $count-- && joq::job::running( $job, 1 ) );
+	if( joq::job::running( $job, 1 ) ) {
 		log::info('kill '.$job->{fullname}.' (still running after stop)');
 		joq::job::kill( $job );
+		joq::job::finished( $job );
 	} else {
 		log::info($job->{fullname}.' softly stopped');
 	}
@@ -299,6 +302,7 @@ sub poll {
 		) if @jobids;
 	}
 	$polling = 0;
+	$pollend = time;
 	( scalar @jobids, scalar @runs, $nbevent );
 }
 

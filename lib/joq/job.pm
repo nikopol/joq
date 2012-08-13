@@ -204,7 +204,7 @@ sub setup {
 
 sub start {
 	my $job = shift;
-	return 0 if running( $job );
+	return 0 if running($job);
 
 	log::debug($job->{fullname}.' starting');
 
@@ -217,9 +217,13 @@ sub start {
 	pipe my $readerr, my $writerr;
 	my $pid = fork;
 
-	return 0 unless defined $pid;
+	if( !defined $pid ){
 
-	if( $pid ) {
+		log::error "fork error : $@";
+		return 0;
+	
+	} elsif( $pid ) {
+
 		close $writout;
 		close $writerr;
 		$job->{pid} = $pid;
@@ -420,19 +424,20 @@ sub finished {
 }
 
 sub running {
-	my $job = shift;
-	# return 0 unless $job->{pid};
-	# my $r = waitpid( $job->{pid}, WNOHANG );
-	# my $c = $?;
-	# if( $r > 0 ) {
-	# 	#terminated
-	# 	log::debug($job->{fullname}.' pid terminated ('.$c.')');
-	# 	finished( $job, $c );
-	# } elsif( $r == -1 ) {
-	# 	#not exists ?!
-	# 	log::debug($job->{fullname}.' pid don\'t exists ('.$c.')');
-	# 	finished( $job );
-	# }
+	my( $job, $syscheck ) = @_;
+	return 0 unless $job->{pid};
+	return $job->{pid} unless $syscheck;
+	my $r = waitpid( $job->{pid}, WNOHANG );
+	my $c = $?;
+	if( $r > 0 ) {
+		#terminated
+		log::debug($job->{fullname}.' pid terminated ('.$c.')');
+		finished( $job, $c );
+	} elsif( $r == -1 ) {
+		#not exists ?!
+		log::debug($job->{fullname}.' pid don\'t exists');
+		finished( $job );
+	}
 	$job->{pid}
 }
 
@@ -443,23 +448,23 @@ sub timeout {
 
 sub stop {
 	my $job = shift;
-	return undef unless my $jid = running( $job );
-	unless( kill( 15, $jid ) ) {
-		log::debug($job->{fullname}.' did not receive term signal');
+	return undef unless my $jid = running( $job, 1 );
+	unless( kill( TERM => $jid ) ) {
+		log::core($job->{fullname}.' did not receive term signal');
 		return 0;
 	}
-	log::debug($job->{fullname}.' receive term signal');
+	log::core($job->{fullname}.' receive term signal');
 	1
 }
 
 sub kill {
 	my $job = shift;
-	return undef unless my $jid = running( $job );
-	unless( kill( 9, $jid ) ) {
-		log::debug($job->{fullname}.' did not receive kill signal');
+	return undef unless my $jid = running( $job, 1 );
+	unless( kill( KILL => $jid ) ) {
+		log::core($job->{fullname}.' did not receive kill signal');
 		return 0;
 	}
-	log::debug($job->{fullname}.' receive kill signal');
+	log::core($job->{fullname}.' receive kill signal');
 	1
 }
 

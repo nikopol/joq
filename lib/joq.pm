@@ -185,16 +185,14 @@ sub stopevents {
 sub setpoll {
 	my $sec = shift || $cfg{polling};
 	delete $watch{poll} if $watch{poll};
-	my $lastpollend = 0;
 	$watch{poll} = AnyEvent->timer(
 		after    => 0,
 		interval => $sec,
 		cb       => sub {
-			if( (time - $lastpollend) > 0 ){
+			if( (time - $joq::queue::pollend) > 0 ){
 				joq::poll();
-				$lastpollend = time;
 			} else {
-				log::warn('poll skipt you should increase the polling delay');
+				log::core('poll skipt');
 			}
 		},
 	);
@@ -203,7 +201,7 @@ sub setpoll {
 
 sub poll {
 	my( $queued, $running, $event ) = joq::queue::poll( $softstop );
-log::core("poll queued=$queued running=$running event=$event");
+	#log::core("queue polled return queued=$queued running=$running event=$event");
 	$w->send('oneshot') if !$queued && $cfg{oneshot};
 	$w->send('soft stop') if !$running && $softstop;
 }
