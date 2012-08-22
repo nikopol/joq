@@ -52,6 +52,7 @@ sub setup {
 	$TZ = $arg{timezone} if $arg{timezone};
 	level( $arg{level} ) if $arg{level};
 	#at least output to stdout
+	$arg{console} = delete $arg{mode} if $arg{mode};
 	$arg{console} = 'color' unless $arg{console} || $arg{file};
 	addout( '*STDOUT', $arg{console} ) if $arg{console};
 	addout( $arg{file}, LONG ) if $arg{file};
@@ -63,7 +64,7 @@ sub config {
 	foreach( keys %out ) {
 		my($h,$m,$l) = @{$out{$_}};
 		if( $_ eq '*STDOUT' ) {
-			$c->{mode} = MODES->[$m];
+			$c->{console} = MODES->[$m];
 		} else {
 			$c->{file} = $_;
 		}
