@@ -3,7 +3,7 @@ package joq::job;
 use strict;
 use warnings;
 
-use POSIX qw(:sys_wait_h);
+use POSIX qw(:signal_h :sys_wait_h);
 
 use AnyEvent;
 use DateTime;
@@ -419,7 +419,7 @@ sub finished {
 	$job->{pid} = 0;
 	delete $job->{ending};
 	$job->{fullname} =~ s/ pid=\d*//;
-	kill 12, $$; #SIGUSR2 => joq::Queue::poll
+	kill SIGUSR2 => $$; #poll queue
 	1
 }
 
@@ -449,7 +449,7 @@ sub timeout {
 sub stop {
 	my $job = shift;
 	return undef unless my $jid = running( $job, 1 );
-	unless( kill( TERM => $jid ) ) {
+	unless( kill( SIGTERM => $jid ) ) {
 		log::core($job->{fullname}.' did not receive term signal');
 		return 0;
 	}
@@ -460,7 +460,7 @@ sub stop {
 sub kill {
 	my $job = shift;
 	return undef unless my $jid = running( $job, 1 );
-	unless( kill( KILL => $jid ) ) {
+	unless( kill( SIGKILL => $jid ) ) {
 		log::core($job->{fullname}.' did not receive kill signal');
 		return 0;
 	}
