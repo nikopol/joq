@@ -4,6 +4,7 @@ use warnings;
 use strict;
 use 5.010;
 
+use POSIX ':signal_h';
 use Socket;
 use AnyEvent;
 use AnyEvent::Socket;
@@ -190,7 +191,7 @@ sub setpoll {
 		interval => $sec,
 		cb       => sub {
 			if( (time - $joq::queue::pollend) > 0 ){
-				joq::poll();
+				joq::poll('polling');
 			} else {
 				log::core('poll skipt');
 			}
@@ -200,7 +201,7 @@ sub setpoll {
 }
 
 sub poll {
-	my( $queued, $running, $event ) = joq::queue::poll( $softstop );
+	my( $queued, $running, $event ) = joq::queue::poll( $softstop, shift );
 	#log::core("queue polled return queued=$queued running=$running event=$event");
 	$w->send('oneshot') if !$queued && $cfg{oneshot};
 	$w->send('soft stop') if !$running && $softstop;
@@ -223,7 +224,7 @@ sub run {
 			} else {
 				log::warn('SIGINT! soft stop - slap me again to hard stop');
 				$softstop = 1;
-				joq::poll();
+				joq::poll('quit');
 			}
 		},
 	);
@@ -240,7 +241,7 @@ sub run {
 		signal  => 'USR2',
 		cb      => sub {
 			log::core('SIGUSR2! polling');
-			joq::poll;
+			joq::poll('signal');
 		}
 	);
 
@@ -328,7 +329,7 @@ EOTXT
 						my $job = addjob( \%jobargs );
 						if( $job ) {
 							$out->send($job->{fullname}.' queued');
-							joq::poll;
+							kill SIGUSR2 => $$; #poll
 							backup;
 						} else {
 							$out->error($@);
