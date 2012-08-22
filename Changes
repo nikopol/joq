@@ -6,6 +6,7 @@ revision history for joq
     - improve polling skipt
     - fix table dump
     - fix for 'error starting job'
+    - load status added
 
 0.0.21 2012-08-09 *rocco*
     - big queue (~30k jobs) optimization

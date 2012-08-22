@@ -17,9 +17,16 @@ my $runcount = 0;
 my $timeoutcount = 0;
 my $paused = 0;
 my $alone = 0;
+my %stats = (
+	runcount     => 0,
+	timeoutcount => 0,
+	queuemax     => 0,
+	readymax     => 0,
+	loadscore    => [],
+	loadtime     => [],
+);
 
 our $pollend = 0;
-
 our %cfg = (
 	maxfork     => 4,  #max simultaneous running
 	maxhistory  => 16, #max done jobs kept
@@ -35,6 +42,9 @@ sub config {
 		if( $key eq 'maxhistory' ) {
 			$cfg{$key} = 0 if 0+$val < 0;
 			histurn();
+		}
+		if( $key eq 'maxfork' ) {
+			$cfg{$key} = 1 if 0+$val < 1;
 		}
 		log::info($key.' set to '.$cfg{$key});
 	} else { 
@@ -194,23 +204,47 @@ sub resume {
 	1
 }
 
+sub loads {
+	my @cnt  = (0) x 15;
+	my @val  = (0) x 15;
+	my $mintime = time - 900;
+	my $n = scalar @{$stats{loadtime}};
+	while( --$n >= 0 && (my $d = $stats{loadtime}[$n]) > $mintime ) {
+		$d = 900 - ($d-$mintime);
+		next if $d < 0;
+		$d = int($d/60);
+		$val[$d] += $stats{loadscore}[$n];
+		$cnt[$d]++;
+	}
+	my $s = 0;
+	for my $n ( 0..14 ) {
+		$val[$n] = $cnt[$n] ? $val[$n] / $cnt[$n] : 0;
+		$s += $val[$n];
+		$val[$n] = $s / ($n+1);
+	}
+	( $val[0], $val[4], $val[14] )
+}
+
 sub status {
 	+{
-		maxfork      => $cfg{maxfork},
-		status       => $paused?'paused':'running',
-		jobs_queued  => scalar keys %jobs,
-		jobs_dead    => scalar @history,
-		jobs_running => scalar @runs,
-		jobs_run     => $runcount,
-		jobs_ready   => scalar @readys,
-		jobs_timeout => $timeoutcount,
-		flag_alone   => $alone,
+		maxfork        => $cfg{maxfork},
+		status         => $paused?'paused':'running',
+		jobs_queued    => scalar keys %jobs,
+		jobs_dead      => scalar @history,
+		jobs_running   => scalar @runs,
+		jobs_run       => $stats{runcount},
+		jobs_ready     => scalar @readys,
+		max_jobs_ready => $stats{readymax},
+		max_jobs_queue => $stats{queuemax},
+		jobs_timeout   => $stats{timeoutcount},
+		flag_alone     => $alone,
+		load           => join(', ', map { sprintf '%.2f', $_ } loads()),
 	};
 }
 
 sub poll {
 	return undef if $polling;
-	my $softstop = shift;
+	my( $softstop, $mode ) = @_;
 	$polling = 1;
 	my %finished;
 	my $nbevent = 0;
@@ -227,7 +261,7 @@ sub poll {
 					log::warning($job->{fullname}.' timeout');
 					stopjob($job);
 					$job->{timeoutcount}++;
-					$timeoutcount++;
+					$stats{timeoutcount}++;
 					undef $run;
 				} else {
 					push @alive, $jid;
@@ -235,7 +269,7 @@ sub poll {
 			}
 			unless( $run ){
 				$finished{$job->{name}} = $jid if exists $job->{name};
-				$runcount++;
+				$stats{runcount}++;
 				if( joq::job::dead($job) ) {
 					log::debug($job->{fullname}.' marked as finished and dead');
 					historize( delete $jobs{$jid} );
@@ -249,6 +283,7 @@ sub poll {
 		@runs = @alive;
 	}
 	my @jobids = keys %jobs;
+	$stats{queuemax} = @jobids if $stats{queuemax} < @jobids;
 	if( @jobids && !$softstop ) {
 		#check startable jobs, ordered by priority
 		my @pending =
@@ -265,6 +300,7 @@ sub poll {
 				$nbrdy++;
 			}
 		}
+		$stats{readymax} = @readys if $stats{readymax} < @readys;
 		#runs jobs if fork slot available
 		unless( $paused || $alone || @runs >= $cfg{maxfork} ) {
 			my @stillreadys;
@@ -292,15 +328,29 @@ sub poll {
 			}
 			@readys = @stillreadys;
 		}
-		log::debug(
-			'polling done.'.
-			' running='.scalar @runs.'/'.$cfg{maxfork}.
-			' ready='.scalar @readys.'/'.(scalar @jobids - scalar @runs).
-			($paused?' (paused)':'').
-			($alone?' (alone mode)':'').
-			($softstop?' (soft stop)':'')
-		) if @jobids;
 	}
+	#calc load stat
+	my $load = (scalar @readys + scalar @runs) / $cfg{maxfork};
+	if( $mode && $mode eq 'polling' ) {
+		my $time = time;
+		push @{$stats{loadtime}}, $time;
+		push @{$stats{loadscore}}, $load;
+		$time -= 15*60;
+		while( @{$stats{loadtime}} && $stats{loadtime}[0] < $time ){
+			pop @{$stats{loadtime}};
+			pop @{$stats{loadscore}};
+		}
+	}
+	log::debug(
+		'polled'.
+		' src='.($mode||'?').
+		' run='.scalar @runs.'/'.$cfg{maxfork}.
+		' rdy='.scalar @readys.'/'.(scalar @jobids - scalar @runs).
+		' load='.$load.
+		($paused?' (paused)':'').
+		($alone?' (alone mode)':'').
+		($softstop?' (soft stop)':'')
+	) if @jobids;
 	$polling = 0;
 	$pollend = time;
 	( scalar @jobids, scalar @runs, $nbevent );
