@@ -337,8 +337,8 @@ sub poll {
 		push @{$stats{loadscore}}, $load;
 		$time -= 15*60;
 		while( @{$stats{loadtime}} && $stats{loadtime}[0] < $time ){
-			pop @{$stats{loadtime}};
-			pop @{$stats{loadscore}};
+			shift @{$stats{loadtime}};
+			shift @{$stats{loadscore}};
 		}
 	}
 	log::debug(
