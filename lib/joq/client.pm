@@ -124,7 +124,7 @@ sub shutdown { shift->cmd('shutdown') }
 sub history  { shift->cmd('history',@_) }
 sub status   { shift->cmd('status') }
 sub pause    { shift->cmd('pause') }
-sub remuse   { shift->cmd('resume') }
+sub resume   { shift->cmd('resume') }
 
 1;
 __END__
