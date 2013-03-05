@@ -7,7 +7,6 @@ use Socket;
 use JSON::XS;
 
 use constant MAXLOGLINES => 20;
-use constant READTIMEOUT => 10;
 
 sub new {
 	my $class = shift;
