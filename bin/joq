@@ -141,7 +141,7 @@ EODEMO
 }
 
 my %o;
-$o{server}  = $server || 'localhost:1970';
+$o{server}  = $server if $server;
 $o{polling} = $polling if $polling;
 $o{backup}  = $backup || './joq.conf';
 delete $o{backup} if $o{backup} =~ /off|disabled?/i;
