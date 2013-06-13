@@ -41,7 +41,7 @@ sub new {
 sub error {
 	my( $self, $err ) = @_;
 	return $self->{error} unless $err;
-	warn "ERROR: $err\n" if $self->{debug};
+	warn "JOQ CLIENT ERROR: $err\n" if $self->{debug};
 	$self->{error} = $err;
 	0;
 }
@@ -102,7 +102,7 @@ sub cmd {
 	my $cmd  = shift;
 	$cmd .= ' '.(ref($_[0]) eq 'HASH' ? encode_json($_[0]) : join(' ',@_)) if @_;
 	$cmd .= "\n";
-	return 'not connected' unless $self->{sock};
+	return $self->error('not connected') unless $self->{sock};
 	print "SEND => $cmd" if $self->{debug};
 	syswrite $self->{sock}, '<'.length($cmd).'>' || return $self->error("write error");
 	syswrite $self->{sock}, $cmd || return $self->error("write error");
