@@ -1,5 +1,11 @@
 revision history for joq
 
+0.0.23 2013-06-14
+    - log size option for auto log rotation
+    - add "show run" command
+    - fix server from config file
+    - fix "resume" command
+
 0.0.22 2012-08-13
     - name becomes unique
     - timeout params added to client
