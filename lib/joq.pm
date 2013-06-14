@@ -9,6 +9,7 @@ use Socket;
 use AnyEvent;
 use AnyEvent::Socket;
 use Time::HiRes qw( sleep );
+use IO::Socket;
 
 use joq::file;
 use joq::logger;
@@ -48,7 +49,7 @@ sub init {
 	}
 	#setup log
 	$arg{log} = {} unless exists $arg{log};
-	for(qw(level file console)) {
+	for(qw(level file console size)) {
 		$arg{log}->{$_} = delete $arg{"log_$_"} if exists $arg{"log_$_"};
 	}
 	log::setup( %{$arg{log}} );
@@ -530,7 +531,7 @@ EOTXT
 						$lev = $_ if /error|warning|info|notice|debug/i;
 						$mod = $_ if /short|long|color/i;
 					}
-					log::addout($cnxid,$mod,$lev,$out->{fh});
+					log::addout($cnxid,$mod,$lev,0,$out->{fh});
 					SHELLOKNP;
 				}
 			},
@@ -763,7 +764,13 @@ EOTXT
 			$ip   = '127.0.0.1';
 			$port = 1970;
 		};
-
+		my $sock = IO::Socket::INET->new(PeerAddr=>$ip,PeerPort=>$port,Proto=>'tcp');
+		if( $sock ) {
+			close $sock;
+			stopevents;
+			log::error("joq already present on $ip:$port");
+			die "\n";
+		}
 		tcp_server( $ip, $port, sub {
 			my($fh, $host, $port) = @_;
 			my $cnxid = "$host:$port";

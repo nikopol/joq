@@ -6,7 +6,6 @@ use strict;
 use Getopt::Long;
 use YAML::XS;
 use joq;
-use joq::client;
 
 GetOptions(
 	'help|h|?'           => \my $help,
@@ -14,6 +13,7 @@ GetOptions(
 	'log|l=s'            => \my $logcon,
 	'loglevel|ll=s'      => \my $loglevel,
 	'logfile|lf=s'       => \my $logfile,
+	'logsize|ls=s'       => \my $logsize,
 	's|server=s'         => \my $server,
 	'b|backup=s'         => \my $backup,
 	'polling|poll|p=s'   => \my $polling,
@@ -71,6 +71,7 @@ avalaible options:
  -l -log mode          : output to stdout color(default),long,short,none
  -ll -loglevel level   : error,warning,notice,info(default),debug
  -lf -logfile filename : output log to filename
+ -ls -logsize 1G|1M|1K : rotate log size
  -s -server host:port  : set telnet client server
                          disabled= -s off
                           default= -s localhost:1970
@@ -151,6 +152,7 @@ $o{oneshot} = 1 if $oneshot;
 $o{maxfork} = $maxfork if $maxfork;
 $o{log_level}   = $loglevel if $loglevel;
 $o{log_file}    = $logfile if $logfile;
+$o{log_size}    = $logsize if $logsize;
 $o{log_console} = $logcon if $logcon;
 
 if( $user ) {
@@ -158,11 +160,6 @@ if( $user ) {
 	die("unknow user $user\n") unless my $uid = getpwnam($user);
 	$< = $uid;
 	die("error switching to $user ($uid) : $!\n") if $!;
-}
-
-if( $o{server} =~ m/^([^\:]+)\:(\d+)$/ ) {
-	die "$o{server} already used!\n"
-		if joq::client->new(host=>$1,port=>$2)->connected;
 }
 
 if( $daemonize ) {
@@ -174,7 +171,6 @@ if( $daemonize ) {
 	exit 0 if $pid;
 	die "can't start a new session: $!" if setsid == -1;
 	open STDERR, '>&STDOUT' or die "can't dup stdout: $!";
-	delete $o{log_mode};
 }
 
 joq::run( %o );

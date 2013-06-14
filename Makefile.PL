@@ -11,6 +11,7 @@ requires 'DateTime';
 requires 'Term::ANSIColor','3.0';
 requires 'Time::HiRes';
 requires 'Getopt::Long';
+requires 'IO::Socket';
 
 tests 't/*.t';
 #author_tests 'xt';

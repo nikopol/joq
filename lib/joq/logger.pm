@@ -52,22 +52,23 @@ sub setup {
 	$TZ = $arg{timezone} if $arg{timezone};
 	level( $arg{level} ) if $arg{level};
 	#at least output to stdout
-	$arg{console} = delete $arg{mode} if $arg{mode};
-	$arg{console} = 'color' unless $arg{console} || $arg{file};
+	$arg{console} = delete $arg{mode} || 'color';
+	delete $arg{console} if lc($arg{console}) eq 'none';
 	addout( '*STDOUT', $arg{console} ) if $arg{console};
-	addout( $arg{file}, LONG ) if $arg{file};
+	addout( $arg{file}, LONG, $loglevel, $arg{size}||0 ) if $arg{file};
 	1;
 }
 
 sub config {
 	my $c = { level => level() };
 	foreach( keys %out ) {
-		my($h,$m,$l) = @{$out{$_}};
+		my($h,$m,$l,$o,$s) = @{$out{$_}};
 		if( $_ eq '*STDOUT' ) {
 			$c->{console} = MODES->[$m];
 		} else {
 			$c->{file} = $_;
 		}
+		$c->{size} = $s if $s;
 	}
 	$c;
 }
@@ -97,28 +98,33 @@ sub pidcolor {
 	$pids{$pid};
 }
 
-sub rotate {
-	my $prefix = shift;
-	$prefix = ++$rotcount unless defined $prefix;
-	foreach my $fn ( keys %out ) {
-		my($h,$mode,$lev,$own) = @{$out{$fn}};
-		if( $own && !($fn =~ /^\*[A-Z]+$/) ) {
-			close $h;
-			open $h, '>>:utf8', $fn.'.'.$prefix;
-			$out{$fn} = [ $h, $mode, $lev, $own ];
-		}
+sub outrotate {
+	my $fn = shift;
+	my($h,$mode,$lev,$own,$siz) = @{$out{$fn}};
+	if( $own && !($fn =~ /^\*[A-Z]+$/) ) {
+		close $h;
+		my $num = 1;
+		$num++ while -r $fn.'.'.$num;
+		rename $fn => $fn.'.'.$num;
+		open $h, '>>:utf8', $fn;
+		$out{$fn} = [ $h, $mode, $lev, $own, $siz ];
 	}
+}
+
+sub rotate {
+	outrotate $_ for keys %out;
 	1;
 }
 
 sub addout {
-	my( $name, $mode, $level, $handle ) = @_;
+	my( $name, $mode, $level, $size, $handle ) = @_;
 	return 0 unless $name;
 	rmout( $name );
+	my $std = $name =~ /^\*[A-Z]+$/;
 	my $own = 0;
 	unless( $handle ) {
 		eval {
-			my $fm = ( $name =~ /^\*[A-Z]+$/ ) ? '>&' : '>>:utf8';
+			my $fm = $std ? '>&' : '>>:utf8';
 			open $handle, $fm, $name;
 			$own = 1;
 		};
@@ -127,8 +133,18 @@ sub addout {
 	return 0 unless $handle;
 	my $l = defined $level ? findlevel($level,LOGLEVELS,LOGINFO) : $loglevel;
 	my $m = findlevel($mode,MODES,COLOR);
-	$out{$name} = [ $handle, $m, $l, $own ];
-	debug($name.' opened (level='.($l?LOGLEVELS->[$l]:'default').',mode='.MODES->[$m].')');
+	my $s = 0;
+	if( !$std && $size ) {
+		my($n,$u) = $size =~ m/(\d+)([okmg])/i;
+		my %cf = ( k=>1000, m=>1000000, g=>1000000000 );
+		if( $n ) {
+			$s = $n;
+			$u = lc $u;
+			$s *= $cf{$u} if $cf{$u};
+		}
+	}
+	$out{$name} = [ $handle, $m, $l, $own, $s ];
+	debug($name.' opened (level='.($l?LOGLEVELS->[$l]:'default').',mode='.MODES->[$m].($s?",size=$s":'').')');
 	$name;
 }
 
@@ -176,10 +192,13 @@ sub LOG {
 		colored(sprintf('%12s',$from),$c2).'|'.
 		colored($msg,$c2)."\n",
 	);
-	foreach( @outkeys ) {
-		my($h,$m,$l) = @{$out{$_}};
+	foreach my $fn ( @outkeys ) {
+		my($h,$m,$l,$o,$s) = @{$out{$fn}};
 		$l = $loglevel unless defined $l;
-		syswrite $h, $fmt[$m] if $level <= $l;
+		if( $level <= $l ) {
+			syswrite $h, $fmt[$m];
+			outrotate $fn if $s && -s $fn >= $s;
+		}
 	}
 	$@ = $msg if $level == LOGERROR;
 	1;
