@@ -659,13 +659,16 @@ EOTXT
 
 			show => {
 				txt => 'show job\'s bowls',
-				arg => 'jobid|jobname',
+				arg => 'jobid|jobname|all|run',
 				bin => sub {
 					my($out,$arg) = @_;
 					if( $arg ) {
 						if( $arg eq 'all' ) {
 							my @jobs = map { delete $_->{logfh}; $_ } ( joq::queue::jobs() );
 							$out->dump(\@jobs,'jobs');
+						} elsif( $arg eq 'run' ) {
+							my @jobs = map { delete $_->{logfh}; $_ } ( joq::queue::runjobs() );
+							$out->dump(\@jobs,'running');
 						} else {
 							my $job = joq::queue::job( $arg );
 							if( $job ) {

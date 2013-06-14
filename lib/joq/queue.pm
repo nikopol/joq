@@ -89,7 +89,7 @@ sub jobids {
 	keys %jobs
 }
 
-sub jobs {
+sub jobs  {
 	values %jobs
 }
 
@@ -104,6 +104,12 @@ sub running {
 	my $job = job( shift );
 	return 0 unless $job;
 	grep { $_ eq $job->{id} } @runs;
+}
+
+sub runjobs  {
+	my @lst;
+	push @lst, $jobs{$_} for @runs;
+	@lst;
 }
 
 sub runcount {
